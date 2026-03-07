@@ -447,7 +447,7 @@ body{font-family:'Sarabun',sans-serif;background:#f5f3ee;color:#2c2c2c;}
 // ════════════════════════════════════════════════════════
 //  🔧 CONFIG — แก้ค่าเหล่านี้ให้ตรงกับ n8n ของคุณ
 // ════════════════════════════════════════════════════════
-const N8N_WEBHOOK_URL = "https://n8n.mathburaphahub.com/webhook/room-booking";
+const N8N_WEBHOOK_URL = "https://your-n8n.domain.com/webhook/room-booking";
 // ↑ เปลี่ยนเป็น Webhook URL จาก n8n node "Webhook" ของคุณ
 // ════════════════════════════════════════════════════════
 
@@ -468,26 +468,53 @@ const STATUS_MAP = {
   approved:{ bg:"#e8f5e9", text:"#2e7d32", label:"อนุมัติแล้ว" },
   pending: { bg:"#fff8e1", text:"#f57f17", label:"รอดำเนินการ" },
   cancelled:{ bg:"#fce4ec", text:"#c62828", label:"ยกเลิกแล้ว" },
+  rejected: { bg:"#fce4ec", text:"#c62828", label:"ไม่อนุมัติ" },
 };
 const TEACHER_PIN = "1234";
 const ADMIN_PW    = "admin1234";
+const LS_KEY      = "roomBookings_v1";
 
 // ─── State ────────────────────────────────────────────────────────────────────
-let session     = null;   // "นิสิต" | "อาจารย์"
+let session     = null;
 let activeTab   = "booking";
-let calYear     = 2026;
-let calMonth    = 2;      // 0-based (2 = March)
+let calYear     = new Date().getFullYear();
+let calMonth    = new Date().getMonth();
 let calFilter   = "all";
 let adminAuth   = false;
 let pinBuffer   = "";
 
-let bookings = [
-  {id:1, name:"สมชาย ใจดี",           role:"นิสิต",   room:"MA103", date:"2026-03-09", startTime:"09:00", endTime:"11:00", purpose:"ทำงานกลุ่ม",  status:"approved"},
-  {id:2, name:"ผศ.ดร.วิภา รักเรียน",  role:"อาจารย์", room:"MA107", date:"2026-03-10", startTime:"13:00", endTime:"15:00", purpose:"สอบสัมมนา",   status:"approved"},
-  {id:3, name:"นิภา สุขสันต์",         role:"นิสิต",   room:"MA105", date:"2026-03-11", startTime:"10:00", endTime:"12:00", purpose:"ซ้อมสัมมนา",  status:"pending"},
-  {id:4, name:"รศ.ดร.ประสิทธิ์ มั่นคง",role:"อาจารย์", room:"MA208", date:"2026-03-12", startTime:"08:30", endTime:"10:30", purpose:"ประชุม",       status:"approved"},
-  {id:5, name:"ธนพล เก่งกาจ",          role:"นิสิต",   room:"MA103", date:"2026-03-07", startTime:"13:00", endTime:"15:00", purpose:"อ่านหนังสือ", status:"approved"},
-];
+// ─── LocalStorage helpers ─────────────────────────────────────────────────────
+function loadBookings() {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch(e) {}
+  // ข้อมูลตัวอย่างเริ่มต้น (จะแสดงแค่ครั้งแรก)
+  return [
+    {id:1710000001000, bookingId:"BK1710000001000", name:"สมชาย ใจดี",           role:"นิสิต",   room:"MA103", date:"2026-03-09", startTime:"09:00", endTime:"11:00", purpose:"ทำงานกลุ่ม",  status:"approved", submittedAt:"2026-03-09T08:00:00.000Z"},
+    {id:1710000002000, bookingId:"BK1710000002000", name:"ผศ.ดร.วิภา รักเรียน",  role:"อาจารย์", room:"MA107", date:"2026-03-10", startTime:"13:00", endTime:"15:00", purpose:"สอบสัมมนา",   status:"approved", submittedAt:"2026-03-09T09:00:00.000Z"},
+    {id:1710000003000, bookingId:"BK1710000003000", name:"นิภา สุขสันต์",         role:"นิสิต",   room:"MA105", date:"2026-03-11", startTime:"10:00", endTime:"12:00", purpose:"ซ้อมสัมมนา",  status:"pending",  submittedAt:"2026-03-09T10:00:00.000Z"},
+    {id:1710000004000, bookingId:"BK1710000004000", name:"รศ.ดร.ประสิทธิ์ มั่นคง",role:"อาจารย์", room:"MA208", date:"2026-03-12", startTime:"08:30", endTime:"10:30", purpose:"ประชุม",       status:"approved", submittedAt:"2026-03-09T11:00:00.000Z"},
+    {id:1710000005000, bookingId:"BK1710000005000", name:"ธนพล เก่งกาจ",          role:"นิสิต",   room:"MA103", date:"2026-03-07", startTime:"13:00", endTime:"15:00", purpose:"อ่านหนังสือ", status:"approved", submittedAt:"2026-03-09T12:00:00.000Z"},
+  ];
+}
+
+function saveBookings() {
+  try { localStorage.setItem(LS_KEY, JSON.stringify(bookings)); } catch(e) {}
+}
+
+function formatTimestamp(iso) {
+  if (!iso) return '–';
+  const d = new Date(iso);
+  const dd = String(d.getDate()).padStart(2,'0');
+  const mm = String(d.getMonth()+1).padStart(2,'0');
+  const yy = d.getFullYear()+543;
+  const hh = String(d.getHours()).padStart(2,'0');
+  const min= String(d.getMinutes()).padStart(2,'0');
+  return `${dd}/${mm}/${yy} ${hh}:${min}`;
+}
+
+let bookings = loadBookings();
 
 // ─── Login / Logout ───────────────────────────────────────────────────────────
 function loginAs(role) {
@@ -671,6 +698,7 @@ async function handleSubmit() {
     if (resp.ok) {
       // บันทึก local ด้วยเพื่อแสดงในหน้าเว็บ
       bookings.unshift({ id: Date.now(), ...payload });
+      saveBookings();
       // เคลียร์ฟอร์ม
       document.getElementById('fName').value    = '';
       document.getElementById('fDate').value    = '';
@@ -686,6 +714,7 @@ async function handleSubmit() {
   } catch (err) {
     // Fallback: บันทึก local แม้ไม่มี n8n (สำหรับทดสอบ)
     bookings.unshift({ id: Date.now(), ...payload });
+    saveBookings();
     document.getElementById('fName').value    = '';
     document.getElementById('fDate').value    = '';
     document.getElementById('fRoom').value    = '';
@@ -708,12 +737,13 @@ function renderList() {
   document.getElementById('listCount').textContent = `พบ ${filtered.length} รายการ`;
   const tbody = document.getElementById('listBody');
   tbody.innerHTML = '';
-  filtered.forEach((b, i) => {
+  filtered.forEach((b) => {
     const st = STATUS_MAP[b.status] || {};
     const isStudent = b.role === 'นิสิต';
+    const ts = formatTimestamp(b.submittedAt);
     tbody.innerHTML += `
       <tr>
-        <td style="color:#aaa;">${i+1}</td>
+        <td style="color:#aaa;font-size:.75rem;white-space:nowrap;">${ts}</td>
         <td style="font-weight:600;">${esc(b.name)}</td>
         <td><span class="rbadge" style="background:${isStudent?'#e3f2fd':'#f3e5f5'};color:${isStudent?'#1565c0':'#6a1b9a'};">
           ${isStudent?'🎓':'👨‍🏫'} ${esc(b.role)}</span></td>
@@ -843,7 +873,8 @@ function renderAdmin() {
   bookings.forEach(b => {
     const st = STATUS_MAP[b.status] || {};
     const approveBtn = b.status === 'pending'
-      ? `<button class="btn-g" onclick="adminApprove(${b.id})">✓ อนุมัติ</button>` : '';
+      ? `<button class="btn-g" onclick="adminApprove(${b.id})">✓ อนุมัติ</button>
+         <button class="btn-d" style="background:#e65100;" onclick="adminReject(${b.id})">✗ ไม่อนุมัติ</button>` : '';
     tbody.innerHTML += `
       <tr>
         <td style="font-weight:600;">${esc(b.name)}</td>
@@ -862,13 +893,23 @@ function renderAdmin() {
 
 function adminApprove(id) {
   bookings = bookings.map(b => b.id === id ? {...b, status:'approved'} : b);
+  saveBookings();
   renderAdmin();
   showMsg('adminMsg', 'ok', '✅ อนุมัติเรียบร้อย');
   setTimeout(() => { document.getElementById('adminMsg').style.display='none'; }, 3000);
 }
 
+function adminReject(id) {
+  bookings = bookings.map(b => b.id === id ? {...b, status:'rejected'} : b);
+  saveBookings();
+  renderAdmin();
+  showMsg('adminMsg', 'err', '❌ ปฏิเสธการจองเรียบร้อย');
+  setTimeout(() => { document.getElementById('adminMsg').style.display='none'; }, 3000);
+}
+
 function adminDelete(id) {
   bookings = bookings.filter(b => b.id !== id);
+  saveBookings();
   renderAdmin();
   showMsg('adminMsg', 'ok', '✅ ลบการจองเรียบร้อย');
   setTimeout(() => { document.getElementById('adminMsg').style.display='none'; }, 3000);
@@ -914,6 +955,93 @@ function esc(str) {
     .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
     .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
+
+// ─── Approval Handler (รับผลจาก n8n ผ่าน URL ?bid=xxx&result=approved) ────────
+function checkApprovalFromURL() {
+  const params = new URLSearchParams(window.location.search);
+  const bid    = params.get('bid');       // bookingId
+  const result = params.get('result');    // approved | rejected
+
+  if (!bid || !result) return;
+
+  // อัปเดต status ใน local bookings
+  const idx = bookings.findIndex(b => b.bookingId === bid || String(b.id) === bid);
+  if (idx !== -1) {
+    bookings[idx].status = result;
+    saveBookings();
+  }
+
+  // แสดง popup ผลลัพธ์
+  const isOk = result === 'approved';
+  const overlay = document.createElement('div');
+  overlay.style.cssText = `
+    position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;
+    display:flex;align-items:center;justify-content:center;padding:1rem;`;
+  overlay.innerHTML = `
+    <div style="background:white;border-radius:20px;padding:2.5rem 2rem;max-width:420px;width:100%;
+      text-align:center;box-shadow:0 30px 80px rgba(0,0,0,.3);
+      border-top:6px solid ${isOk?'#2e7d32':'#c62828'};">
+      <div style="font-size:4rem;margin-bottom:1rem;">${isOk?'✅':'❌'}</div>
+      <div style="font-family:'Noto Serif Thai',serif;font-size:1.4rem;font-weight:700;
+        color:${isOk?'#2e7d32':'#c62828'};margin-bottom:.5rem;">
+        ${isOk?'อนุมัติการจองแล้ว':'ไม่อนุมัติการจอง'}
+      </div>
+      <div style="font-size:.9rem;color:#666;margin-bottom:1.5rem;">
+        รหัสการจอง: <strong>${esc(bid)}</strong>
+      </div>
+      <div style="background:${isOk?'#e8f5e9':'#fce4ec'};border-radius:10px;
+        padding:.85rem 1.2rem;font-size:.88rem;color:${isOk?'#2e7d32':'#c62828'};
+        margin-bottom:1.5rem;">
+        ${isOk
+          ? '✅ การจองได้รับการอนุมัติเรียบร้อยแล้ว ระบบบันทึกข้อมูลแล้ว'
+          : '❌ การจองถูกปฏิเสธ กรุณาติดต่อเจ้าหน้าที่เพื่อข้อมูลเพิ่มเติม'}
+      </div>
+      <button onclick="this.closest('div[style]').remove(); window.history.replaceState({}, '', window.location.pathname);"
+        style="background:linear-gradient(135deg,#1a237e,#1565c0);color:white;border:none;
+          padding:.75rem 2rem;border-radius:8px;font-family:'Sarabun',sans-serif;
+          font-size:.95rem;font-weight:600;cursor:pointer;">
+        ปิดและดูรายการจอง
+      </button>
+    </div>`;
+  document.body.appendChild(overlay);
+
+  // ลบ query string ออกจาก URL โดยไม่ reload
+  window.history.replaceState({}, '', window.location.pathname);
+}
+
+// ─── Auto Polling: ดึงสถานะล่าสุดจาก n8n ทุก 60 วินาที ─────────────────────
+function startStatusPolling() {
+  setInterval(async () => {
+    const pendingList = bookings.filter(b => b.status === 'pending');
+    if (pendingList.length === 0) return;
+
+    for (const b of pendingList) {
+      try {
+        const resp = await fetch(
+          `https://n8n.mathburaphahub.com/webhook/check-status?bid=${b.bookingId || b.id}`,
+          { method: 'GET' }
+        );
+        if (resp.ok) {
+          const data = await resp.json();
+          if (data.status && data.status !== 'pending') {
+            const idx = bookings.findIndex(x => x.id === b.id);
+            if (idx !== -1) {
+              bookings[idx].status = data.status;
+              saveBookings();
+              if (activeTab === 'list') renderList();
+            }
+          }
+        }
+      } catch(e) { /* silent */ }
+    }
+  }, 60000); // ทุก 1 นาที
+}
+
+// ─── เรียกใช้เมื่อโหลดหน้าเว็บ ────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', () => {
+  checkApprovalFromURL();
+  startStatusPolling();
+});
 </script>
 </body>
 </html>
