@@ -1,100 +1,17 @@
 <!DOCTYPE html>
 <html lang="th">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ระบบจองห้องออนไลน์ — ภาควิชาคณิตศาสตร์</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&family=Noto+Serif+Thai:wght@400;600;700&display=swap" rel="stylesheet" />
-  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: 'Sarabun', sans-serif; }
-    #root { min-height: 100vh; }
-  </style>
-</head>
-<body>
-  <div id="root"></div>
-
-  <script type="text/babel" data-presets="react">
-    const { useState, useMemo } = React;
-
-    // ── n8n Webhook URL ──────────────────────────────────────────────────────
-    const N8N_WEBHOOK_URL = "https://n8n.mathburaphahub.com/webhook/room-booking";
-
-    // ── Helper: ส่งข้อมูลไปยัง n8n ──────────────────────────────────────────
-    const sendToWebhook = async (payload) => {
-      try {
-        const res = await fetch(N8N_WEBHOOK_URL, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            ...payload,
-            submittedAt: new Date().toISOString(),
-            source: "room-booking-web",
-          }),
-        });
-        if (!res.ok) console.warn("Webhook responded:", res.status);
-      } catch (err) {
-        console.error("Webhook error:", err);
-      }
-    };
-
-    // ── Data Constants ───────────────────────────────────────────────────────
-    const ROOMS = [
-      { id:"MA103", name:"MA103",               allowStudent:true,  needsApproval:false, icon:"📚", note:"นิสิต: จ.-ศ. 08:00-17:00 | อาจารย์/เจ้าหน้าที่: ทุกเวลา ไม่จำกัด" },
-      { id:"MA105", name:"MA105",               allowStudent:true,  needsApproval:false, icon:"📖", note:"นิสิต: จ.-ศ. 08:00-17:00 | อาจารย์/เจ้าหน้าที่: ทุกเวลา ไม่จำกัด" },
-      { id:"MA106", name:"MA106 (คอมพิวเตอร์)", allowStudent:true,  needsApproval:true,  icon:"💻", note:"🔐 ต้องมีอาจารย์ Approve ก่อนเสมอ — ระบบจะส่ง Email ขออนุมัติอัตโนมัติ" },
-      { id:"MA107", name:"MA107",               allowStudent:true,  needsApproval:true,  icon:"🏫", note:"🔐 ต้องมีอาจารย์ Approve ก่อนเสมอ — ระบบจะส่ง Email ขออนุมัติอัตโนมัติ" },
-      { id:"MA208", name:"MA208",               allowStudent:true,  needsApproval:true,  icon:"🎓", note:"🔐 ต้องมีอาจารย์ Approve ก่อนเสมอ — ระบบจะส่ง Email ขออนุมัติอัตโนมัติ" },
-    ];
-
-    const SLOTS_1H = [
-      ["08:00","09:00"],["09:00","10:00"],
-      ["10:00","11:00"],["11:00","12:00"],
-      ["13:00","14:00"],["14:00","15:00"],
-      ["15:00","16:00"],["16:00","17:00"],
-    ];
-    const SLOTS_2H = [
-      ["08:00","10:00"],["10:00","12:00"],
-      ["13:00","15:00"],["15:00","17:00"],
-    ];
-    const PURPOSE_RULES = {
-      "ซ้อมสัมมนา":         { hrs:1, slots:SLOTS_1H, label:"ซ้อม — จำกัด 1 ชม." },
-      "ซ้อมโครงงาน/โปรเจค": { hrs:1, slots:SLOTS_1H, label:"ซ้อม — จำกัด 1 ชม." },
-      "สอบสัมมนา":          { hrs:2, slots:SLOTS_2H, label:"สอบ — จำกัด 2 ชม." },
-      "สอบโครงงาน/โปรเจค":  { hrs:2, slots:SLOTS_2H, label:"สอบ — จำกัด 2 ชม." },
-      "ทำงานกลุ่ม":          { hrs:2, slots:SLOTS_2H, label:"ทำงานกลุ่ม — จำกัด 2 ชม." },
-      "อ่านหนังสือ":         { hrs:2, slots:SLOTS_2H, label:"อ่านหนังสือ — จำกัด 2 ชม." },
-    };
-    const MONTHS = ["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."];
-    const DAYS   = ["อา","จ","อ","พ","พฤ","ศ","ส"];
-    const TEACHER_PIN = "1234";
-    const ADMIN_PW    = "admin1234";
-
-    const INIT_BOOKINGS = [
-      {id:1,code:"BK-DEMO",name:"สมชาย ใจดี",           role:"นิสิต",  room:"MA103",date:"2026-03-09",startTime:"09:00",endTime:"10:00",purpose:"ทำงานกลุ่ม", groupSize:1,status:"approved"},
-      {id:2,code:"BK-DEM2",name:"ผศ.ดร.วิภา รักเรียน",  role:"อาจารย์",room:"MA107",date:"2026-03-10",startTime:"13:00",endTime:"15:00",purpose:"สอบสัมมนา",  groupSize:2,status:"approved"},
-      {id:3,code:"BK-DEM3",name:"นิภา สุขสันต์",         role:"นิสิต",  room:"MA105",date:"2026-03-11",startTime:"10:00",endTime:"13:00",purpose:"ซ้อมสัมมนา", groupSize:3,status:"pending"},
-      {id:4,code:"BK-DEM4",name:"รศ.ดร.ประสิทธิ์ มั่นคง",role:"อาจารย์",room:"MA208",date:"2026-03-12",startTime:"08:30",endTime:"10:30",purpose:"ประชุม",      groupSize:1,status:"approved"},
-      {id:5,code:"BK-DEM5",name:"ธนพล เก่งกาจ",          role:"นิสิต",  room:"MA103",date:"2026-03-07",startTime:"18:00",endTime:"19:00",purpose:"อ่านหนังสือ",groupSize:1,status:"awaiting_advisor"},
-    ];
-
-    const ST = {
-      approved:         {bg:"#e8f5e9",text:"#2e7d32",  dbg:"#0a2410",dtext:"#66bb6a", label:"อนุมัติแล้ว"},
-      pending:          {bg:"#fff8e1",text:"#f57f17",  dbg:"#1f1500",dtext:"#ffb300", label:"รอดำเนินการ"},
-      cancelled:        {bg:"#fce4ec",text:"#c62828",  dbg:"#2a0a10",dtext:"#ef9a9a", label:"ยกเลิกแล้ว"},
-      awaiting_advisor: {bg:"#fce4ec",text:"#ad1457",  dbg:"#2a0510",dtext:"#f48fb1", label:"⏳ รออาจารย์อนุมัติ"},
-    };
-
-    // ── CSS ─────────────────────────────────────────────────────────────────
-    const CSS = `
-@import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&family=Noto+Serif+Thai:wght@400;600;700&display=swap');
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ระบบจองห้องออนไลน์ — ภาควิชาคณิตศาสตร์ BUU</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&family=Noto+Serif+Thai:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+/* ── Reset ── */
 *{box-sizing:border-box;margin:0;padding:0;}
-body{font-family:'Sarabun',sans-serif;}
+body{font-family:'Sarabun',sans-serif;background:var(--bg);color:var(--text);}
+
+/* ── Light tokens ── */
 :root{
   --bg:#f5f3ee;--bg-card:#fff;--bg-input:#fafafa;--bg-sub:#f0f4ff;
   --border:#ddd;--border2:#e8e4db;--border3:#c5cae9;
@@ -107,7 +24,8 @@ body{font-family:'Sarabun',sans-serif;}
   --sh:0 2px 8px rgba(0,0,0,.07);
   --adm-body:#fff;
 }
-.dark{
+/* ── Dark tokens ── */
+body.dark{
   --bg:#0f1117;--bg-card:#1a1d27;--bg-input:#252836;--bg-sub:#1a1f35;
   --border:#2e3248;--border2:#2a2d3e;--border3:#2e3a6e;
   --text:#e8eaf6;--text2:#9da3c4;--text3:#555b7a;--text4:#3a3f60;
@@ -119,9 +37,14 @@ body{font-family:'Sarabun',sans-serif;}
   --sh:0 2px 16px rgba(0,0,0,.4);
   --adm-body:#1a1d27;
 }
+
+/* ── Global ── */
 .app-wrap{min-height:100vh;background:var(--bg);color:var(--text);transition:background .25s,color .25s;}
 .main{max-width:1200px;margin:0 auto;padding:2rem;background:var(--bg);transition:background .25s;}
 .card{background:var(--bg-card);border-radius:12px;padding:1.75rem;box-shadow:var(--sh);border:1px solid var(--border2);transition:background .25s,border-color .25s;}
+.hidden{display:none!important;}
+
+/* ── Header ── */
 .hdr{background:linear-gradient(135deg,#1a237e,#283593 60%,#1565c0);color:white;padding:0 2rem;box-shadow:0 2px 12px rgba(26,35,126,.3);position:sticky;top:0;z-index:100;}
 .hdr-inner{max-width:1200px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;padding:.85rem 0;gap:.5rem;flex-wrap:wrap;}
 .hdr-brand{display:flex;align-items:center;gap:.75rem;}
@@ -129,20 +52,25 @@ body{font-family:'Sarabun',sans-serif;}
 .hdr-title{font-family:'Noto Serif Thai',serif;font-size:.95rem;font-weight:700;line-height:1.3;}
 .hdr-sub{font-size:.7rem;opacity:.7;}
 .hdr-right{display:flex;align-items:center;gap:.4rem;flex-wrap:wrap;}
-.nav-btn{background:transparent;border:1px solid transparent;color:rgba(255,255,255,.8);padding:.4rem .8rem;border-radius:6px;cursor:pointer;font-family:'Sarabun',sans-serif;font-size:.8rem;transition:all .2s;display:flex;align-items:center;gap:.3rem;}
+.nav-btn{background:transparent;border:1px solid transparent;color:rgba(255,255,255,.8);padding:.4rem .8rem;border-radius:6px;cursor:pointer;font-family:'Sarabun',sans-serif;font-size:.8rem;transition:all .2s;display:inline-flex;align-items:center;gap:.3rem;}
 .nav-btn:hover{background:rgba(255,255,255,.12);color:#fff;}
 .nav-btn.active{background:rgba(255,255,255,.2);border-color:rgba(255,255,255,.4);color:#fff;font-weight:700;}
 .chip{background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.35);border-radius:20px;padding:.3rem .8rem;font-size:.78rem;font-weight:600;display:flex;align-items:center;gap:.35rem;}
 .btn-out{background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;padding:.3rem .75rem;border-radius:7px;cursor:pointer;font-family:'Sarabun',sans-serif;font-size:.75rem;}
 .btn-out:hover{background:rgba(255,255,255,.25);}
-.dm-btn{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.25);color:white;padding:.3rem .7rem;border-radius:20px;cursor:pointer;font-family:'Sarabun',sans-serif;font-size:.78rem;display:flex;align-items:center;gap:.35rem;transition:all .2s;}
+.dm-btn{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.25);color:white;padding:.3rem .7rem;border-radius:20px;cursor:pointer;font-family:'Sarabun',sans-serif;font-size:.78rem;display:inline-flex;align-items:center;gap:.35rem;transition:all .2s;}
 .dm-btn:hover{background:rgba(255,255,255,.2);}
+.sync-btn{display:inline-flex;align-items:center;gap:.3rem;padding:.28rem .6rem;border-radius:7px;border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.12);color:#fff;cursor:pointer;font-size:.72rem;font-family:'Sarabun',sans-serif;font-weight:600;}
+
+/* ── Section ── */
 .sec-hdr{display:flex;align-items:center;gap:.75rem;margin-bottom:1.25rem;}
 .sec-hdr h2{font-family:'Noto Serif Thai',serif;font-size:1.3rem;font-weight:700;color:#1a237e;}
-.dark .sec-hdr h2{color:#7986cb;}
+body.dark .sec-hdr h2{color:#7986cb;}
 .sec-icon{width:38px;height:38px;background:linear-gradient(135deg,#1a237e,#1565c0);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1rem;color:#fff;flex-shrink:0;}
 .divider{height:3px;background:linear-gradient(90deg,#1a237e,#42a5f5,transparent);border-radius:2px;margin-bottom:1.5rem;}
-.dark .divider{background:linear-gradient(90deg,#3949ab,#42a5f5,transparent);}
+body.dark .divider{background:linear-gradient(90deg,#3949ab,#42a5f5,transparent);}
+
+/* ── Form ── */
 .fgrid{display:grid;grid-template-columns:1fr 1fr;gap:1.25rem;}
 .fg{display:flex;flex-direction:column;gap:.4rem;}
 .fg.wide{grid-column:1/-1;}
@@ -150,53 +78,70 @@ body{font-family:'Sarabun',sans-serif;}
 .flabel span{color:#c62828;}
 .finput,.fselect{border:1.5px solid var(--border);border-radius:8px;padding:.6rem .85rem;font-family:'Sarabun',sans-serif;font-size:.92rem;color:var(--text);background:var(--bg-input);width:100%;transition:border-color .2s,box-shadow .2s,background .2s;}
 .finput:focus,.fselect:focus{outline:none;border-color:#5c6bc0;box-shadow:0 0 0 3px rgba(92,107,192,.15);background:var(--bg-card);}
+textarea.finput{resize:vertical;min-height:72px;}
 .rnote{font-size:.76rem;color:var(--text3);margin-top:.25rem;}
-.btn-p{background:linear-gradient(135deg,#1a237e,#1565c0);color:#fff;border:none;padding:.82rem 1.75rem;border-radius:8px;font-family:'Sarabun',sans-serif;font-size:.95rem;font-weight:600;cursor:pointer;transition:all .2s;box-shadow:0 3px 10px rgba(26,35,126,.3);display:flex;align-items:center;gap:.5rem;}
+
+/* ── Buttons ── */
+.btn-p{background:linear-gradient(135deg,#1a237e,#1565c0);color:#fff;border:none;padding:.82rem 1.75rem;border-radius:8px;font-family:'Sarabun',sans-serif;font-size:.95rem;font-weight:600;cursor:pointer;transition:all .2s;box-shadow:0 3px 10px rgba(26,35,126,.3);display:inline-flex;align-items:center;gap:.5rem;}
 .btn-p:hover{transform:translateY(-1px);box-shadow:0 5px 15px rgba(26,35,126,.4);}
 .btn-d{background:#c62828;color:#fff;border:none;padding:.38rem .8rem;border-radius:6px;font-family:'Sarabun',sans-serif;font-size:.8rem;cursor:pointer;}
 .btn-d:hover{background:#b71c1c;}
 .btn-g{background:#2e7d32;color:#fff;border:none;padding:.38rem .65rem;border-radius:6px;cursor:pointer;font-family:'Sarabun',sans-serif;font-size:.78rem;}
+
+/* ── Alerts ── */
 .alert{padding:.8rem 1.1rem;border-radius:8px;margin-bottom:1rem;font-size:.88rem;display:flex;align-items:center;gap:.5rem;}
 .a-ok{background:#e8f5e9;color:#2e7d32;border:1px solid #a5d6a7;}
 .a-err{background:#fce4ec;color:#c62828;border:1px solid #ef9a9a;}
-.dark .a-ok{background:#0a2410;color:#66bb6a;border-color:#2e7d32;}
-.dark .a-err{background:#2a0a10;color:#ef9a9a;border-color:#c62828;}
+body.dark .a-ok{background:#0a2410;color:#66bb6a;border-color:#2e7d32;}
+body.dark .a-err{background:#2a0a10;color:#ef9a9a;border-color:#c62828;}
+
+/* ── Badge role ── */
 .badge-role{display:inline-flex;align-items:center;gap:.4rem;background:#f3e5f5;border:1px solid #ce93d8;border-radius:20px;padding:.28rem .8rem;font-size:.8rem;font-weight:600;color:#6a1b9a;margin-bottom:1.25rem;}
 .badge-role.student{background:#e3f2fd;border-color:#90caf9;color:#1565c0;}
-.dark .badge-role{background:#2a1040;border-color:#6a1b9a;color:#ce93d8;}
-.dark .badge-role.student{background:#0d2040;border-color:#1565c0;color:#90caf9;}
+body.dark .badge-role{background:#2a1040;border-color:#6a1b9a;color:#ce93d8;}
+body.dark .badge-role.student{background:#0d2040;border-color:#1565c0;color:#90caf9;}
+
+/* ── Rules box ── */
 .rules-box{background:var(--rules-bg);border:1px solid var(--rules-bd);border-radius:8px;padding:.9rem 1.2rem;margin-bottom:1.5rem;}
 .rules-ttl{font-weight:700;color:#e65100;margin-bottom:.5rem;font-size:.88rem;}
-.rules-list{list-style:none;}
-.rules-list li{font-size:.81rem;color:var(--text2);padding:.2rem 0 .2rem 1rem;position:relative;}
-.rules-list li::before{content:"▸";position:absolute;left:0;color:#f9a825;}
+
+/* ── Group box ── */
 .group-box{background:var(--grp-bg);border:1.5px solid var(--border3);border-radius:10px;padding:1rem 1.2rem;margin-bottom:1.25rem;}
 .group-title{font-weight:700;font-size:.86rem;color:#1a237e;margin-bottom:.7rem;display:flex;align-items:center;gap:.4rem;}
-.dark .group-title{color:#7986cb;}
+body.dark .group-title{color:#7986cb;}
 .grp-counter{display:flex;align-items:center;gap:.7rem;margin-bottom:.7rem;flex-wrap:wrap;}
 .gc-btn{width:32px;height:32px;border-radius:7px;border:1.5px solid var(--border3);background:var(--grp-item);font-size:1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;font-weight:700;color:#1a237e;transition:all .15s;}
 .gc-btn:hover{background:#e8eaf6;border-color:#1a237e;}
-.dark .gc-btn{color:#7986cb;}
-.dark .gc-btn:hover{background:#1f2235;border-color:#5c6bc0;}
+body.dark .gc-btn{color:#7986cb;}
+body.dark .gc-btn:hover{background:#1f2235;border-color:#5c6bc0;}
 .gc-btn:disabled{opacity:.3;cursor:default;}
 .gc-num{font-size:1.2rem;font-weight:700;color:#1a237e;min-width:26px;text-align:center;}
-.dark .gc-num{color:#7986cb;}
+body.dark .gc-num{color:#7986cb;}
 .gc-info{font-size:.78rem;color:var(--text2);background:var(--grp-item);border:1px solid var(--border3);border-radius:7px;padding:.3rem .7rem;}
-.gc-info strong{color:#1a237e;}
-.dark .gc-info strong{color:#7986cb;}
-.member-list{display:flex;flex-direction:column;gap:.45rem;margin-top:.7rem;}
-.member-row{display:grid;grid-template-columns:auto 1fr 1fr;gap:.45rem;align-items:center;background:var(--grp-item);border-radius:8px;padding:.45rem .7rem;border:1px solid var(--border);}
-.member-idx{font-size:.73rem;font-weight:700;color:#1a237e;white-space:nowrap;}
-.dark .member-idx{color:#7986cb;}
+
+/* ── OT box ── */
 .ot-box{background:#fff3e0;border:2px solid #ff6f00;border-radius:10px;padding:.9rem 1.1rem;margin-bottom:1.25rem;}
-.dark .ot-box{background:#1f1000;border-color:#e65100;}
+body.dark .ot-box{background:#1f1000;border-color:#e65100;}
 .ot-title{font-weight:700;color:#e65100;margin-bottom:.5rem;font-size:.88rem;display:flex;align-items:center;gap:.4rem;}
 .ot-desc{font-size:.8rem;color:#bf360c;margin-bottom:.8rem;line-height:1.5;}
-.dark .ot-desc{color:#ff8a50;}
+body.dark .ot-desc{color:#ff8a50;}
+
+/* ── Slot picker ── */
+.slot-box{margin-top:1.1rem;padding:1rem 1.1rem;background:var(--bg-sub);border:1.5px solid var(--border3);border-radius:10px;}
+.slot-btn{padding:.52rem 1rem;border-radius:9px;border:2px solid var(--border3);background:var(--bg-card);color:var(--text2);font-family:'Sarabun',sans-serif;font-size:.86rem;font-weight:500;cursor:pointer;transition:all .15s;}
+.slot-btn:hover:not(:disabled){border-color:#1a237e;background:#f0f4ff;}
+.slot-btn.selected{border-color:#1a237e!important;background:#1a237e!important;color:#fff!important;font-weight:700;box-shadow:0 3px 12px rgba(26,35,126,.3);}
+.slot-btn.conflict{border-color:#ef9a9a!important;background:#fce4ec!important;color:#c62828!important;cursor:not-allowed;opacity:.7;}
+body.dark .slot-btn.conflict{background:#2a0a10!important;}
+
+/* ── Tabs ── */
 .tabs{display:flex;gap:.45rem;margin-bottom:1.5rem;flex-wrap:wrap;}
 .tab{padding:.45rem 1.1rem;border:2px solid var(--border);border-radius:7px;background:var(--bg-card);cursor:pointer;font-family:'Sarabun',sans-serif;font-size:.85rem;font-weight:500;color:var(--text3);transition:all .2s;}
 .tab.active{border-color:#1a237e;background:#1a237e;color:#fff;font-weight:700;}
-.dark .tab.active{background:#283593;border-color:#5c6bc0;}
+body.dark .tab.active{background:#283593;border-color:#5c6bc0;}
+
+/* ── Table ── */
+.tbl-wrap{overflow-x:auto;}
 .tbl{width:100%;border-collapse:collapse;}
 .tbl th{background:#1a237e;color:#fff;padding:.7rem .9rem;text-align:left;font-size:.8rem;font-weight:600;}
 .tbl th:first-child{border-radius:8px 0 0 0;}.tbl th:last-child{border-radius:0 8px 0 0;}
@@ -205,111 +150,40 @@ body{font-family:'Sarabun',sans-serif;}
 .tbl tr:hover td{background:var(--tbl-row);}
 .sbadge{display:inline-block;padding:2px 9px;border-radius:20px;font-size:.75rem;font-weight:600;}
 .rbadge{font-size:.75rem;padding:2px 8px;border-radius:20px;font-weight:600;}
+
+/* ── Filter bar ── */
 .fbar{display:flex;gap:.6rem;margin-bottom:1.2rem;flex-wrap:wrap;align-items:center;}
 .fsel{border:1.5px solid var(--border);border-radius:7px;padding:.42rem .8rem;font-family:'Sarabun',sans-serif;font-size:.85rem;background:var(--bg-card);color:var(--text);cursor:pointer;transition:background .2s,border-color .2s;}
+
+/* ── Calendar ── */
 .cal-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;}
 .cal-nav{background:var(--grp-bg);border:none;width:34px;height:34px;border-radius:7px;cursor:pointer;font-size:1rem;color:#1a237e;transition:background .2s;}
 .cal-nav:hover{background:var(--border3);}
-.dark .cal-nav{color:#7986cb;}
+body.dark .cal-nav{color:#7986cb;}
 .cal-title{font-family:'Noto Serif Thai',serif;font-size:1.05rem;font-weight:700;color:#1a237e;}
-.dark .cal-title{color:#7986cb;}
+body.dark .cal-title{color:#7986cb;}
 .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;}
 .cal-dh{text-align:center;font-size:.72rem;font-weight:700;color:var(--text3);padding:.35rem 0;}
 .cal-cell{background:var(--cal-cell);border:1px solid var(--cal-bd);border-radius:7px;min-height:78px;padding:.38rem;transition:background .2s,border-color .2s;}
 .cal-cell.today{border:2px solid #1a237e;}
-.dark .cal-cell.today{border-color:#5c6bc0;}
+body.dark .cal-cell.today{border-color:#5c6bc0;}
 .cal-cell.empty{background:transparent;border-color:transparent;}
 .cal-dn{font-size:.78rem;font-weight:600;color:var(--text2);margin-bottom:.28rem;display:flex;justify-content:space-between;align-items:center;}
 .cal-cell.today .cal-dn{color:#1a237e;}
-.dark .cal-cell.today .cal-dn{color:#7986cb;}
+body.dark .cal-cell.today .cal-dn{color:#7986cb;}
 .cal-ev{font-size:.65rem;padding:2px 4px;border-radius:3px;margin-bottom:2px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#fff;}
+
+/* ── Popup / Modal ── */
 .pop-ov{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;display:flex;align-items:center;justify-content:center;padding:1rem;}
-.pop-card{background:var(--pop-bg);border-radius:14px;padding:1.75rem;max-width:420px;width:100%;box-shadow:var(--pop-sh);border-top:5px solid #3949ab;}
+.pop-card{background:var(--pop-bg);border-radius:14px;padding:1.75rem;max-width:420px;width:100%;box-shadow:var(--pop-sh);border-top:5px solid #3949ab;animation:pop-in .25s ease;}
 .pop-ttl{font-family:'Noto Serif Thai',serif;font-size:1.05rem;font-weight:700;color:#1a237e;margin-bottom:1rem;}
-.dark .pop-ttl{color:#7986cb;}
+body.dark .pop-ttl{color:#7986cb;}
 .pop-row{display:flex;gap:.5rem;margin-bottom:.45rem;font-size:.88rem;color:var(--text);}
 .pop-lbl{font-weight:600;color:var(--text2);min-width:88px;}
 .pop-close{margin-top:1.1rem;background:var(--grp-bg);border:none;padding:.55rem 1.4rem;border-radius:7px;cursor:pointer;font-family:'Sarabun',sans-serif;font-weight:600;color:#1a237e;}
-.dark .pop-close{color:#7986cb;}
-.adm-hdr{background:linear-gradient(135deg,#4a148c,#6a1b9a);color:#fff;padding:1.1rem 1.5rem;border-radius:12px 12px 0 0;display:flex;align-items:center;gap:.75rem;}
-.adm-hdr h3{font-family:'Noto Serif Thai',serif;font-size:1.05rem;font-weight:700;}
-.adm-hdr p{font-size:.8rem;opacity:.8;}
-.adm-body{background:var(--adm-body);border-radius:0 0 12px 12px;border:1px solid var(--border2);border-top:none;overflow:hidden;}
-.login-bg{min-height:100vh;background:linear-gradient(160deg,#0d1b6e,#1a237e 45%,#1565c0);display:flex;align-items:center;justify-content:center;padding:1.5rem;position:relative;overflow:hidden;}
-.login-bg::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 70% 20%,rgba(255,255,255,.07) 0%,transparent 60%),radial-gradient(ellipse at 20% 80%,rgba(21,101,192,.3) 0%,transparent 50%);pointer-events:none;}
-.login-card{background:#fff;border-radius:20px;padding:2.5rem 2rem;max-width:420px;width:100%;box-shadow:0 30px 80px rgba(0,0,0,.35);position:relative;}
-.dark .login-card{background:#1a1d27;box-shadow:0 30px 80px rgba(0,0,0,.6);}
-.login-top{text-align:center;margin-bottom:2rem;}
-.login-logo{width:70px;height:70px;background:linear-gradient(135deg,#1a237e,#1565c0);border-radius:18px;display:flex;align-items:center;justify-content:center;font-size:1.9rem;margin:0 auto .9rem;box-shadow:0 8px 20px rgba(26,35,126,.35);}
-.login-title{font-family:'Noto Serif Thai',serif;font-size:1.2rem;font-weight:700;color:#1a237e;line-height:1.3;}
-.dark .login-title{color:#7986cb;}
-.login-sub{font-size:.78rem;color:#999;margin-top:.3rem;}
-.dark .login-sub{color:#555;}
-.role-cards{display:grid;grid-template-columns:1fr 1fr;gap:.7rem;margin-bottom:1.4rem;}
-.role-card{border:2px solid #e0e0e0;border-radius:13px;padding:1.1rem .7rem;text-align:center;cursor:pointer;transition:all .2s;background:#fff;font-family:'Sarabun',sans-serif;}
-.role-card:hover{border-color:#1a237e;background:#f0f4ff;transform:translateY(-2px);}
-.dark .role-card{background:#252836;border-color:#2e3248;}
-.dark .role-card:hover{background:#1f2235;border-color:#3949ab;}
-.rc-icon{font-size:1.9rem;display:block;margin-bottom:.45rem;}
-.rc-name{font-weight:700;font-size:.92rem;color:#333;}
-.dark .rc-name{color:#e8eaf6;}
-.rc-desc{font-size:.7rem;color:#999;margin-top:.18rem;}
-.pin-label{font-size:.8rem;font-weight:600;color:#555;text-transform:uppercase;letter-spacing:.5px;margin-bottom:.45rem;}
-.dark .pin-label{color:#9da3c4;}
-.pin-dots{display:flex;gap:.45rem;justify-content:center;margin:.85rem 0;}
-.pin-dot{width:13px;height:13px;border-radius:50%;border:2px solid #bbb;background:#fff;transition:all .2s;}
-.pin-dot.filled{background:#1a237e;border-color:#1a237e;}
-.dark .pin-dot{background:#252836;border-color:#2e3248;}
-.dark .pin-dot.filled{background:#3949ab;border-color:#3949ab;}
-.pin-pad{display:grid;grid-template-columns:repeat(3,1fr);gap:.45rem;margin-bottom:.9rem;}
-.pin-key{background:#f5f5f5;border:1px solid #e0e0e0;border-radius:9px;padding:.7rem;font-size:1.05rem;font-weight:600;cursor:pointer;transition:all .15s;font-family:'Sarabun',sans-serif;color:#333;}
-.pin-key:hover{background:#e8eaf6;border-color:#1a237e;color:#1a237e;}
-.pin-key:active{transform:scale(.94);}
-.pin-zero{grid-column:2;}
-.pin-del{color:#c62828;}
-.dark .pin-key{background:#252836;border-color:#2e3248;color:#e8eaf6;}
-.dark .pin-key:hover{background:#1f2235;border-color:#5c6bc0;color:#7986cb;}
-.dark .pin-del{color:#ef9a9a;}
-.pin-error{background:#fce4ec;border:1px solid #ef9a9a;border-radius:8px;padding:.55rem .9rem;font-size:.83rem;color:#c62828;text-align:center;margin-bottom:.7rem;}
-.dark .pin-error{background:#2a0a10;border-color:#c62828;color:#ef9a9a;}
-.btn-back{background:none;border:none;color:#1a237e;font-family:'Sarabun',sans-serif;font-size:.83rem;cursor:pointer;margin-top:.7rem;text-decoration:underline;display:block;text-align:center;width:100%;}
-.dark .btn-back{color:#7986cb;}
-.demo-hint{text-align:center;font-size:.7rem;color:#bbb;margin-top:.45rem;}
-.dark .demo-hint{color:#444860;}
-@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}
-.shake{animation:shake .3s ease;}
-@keyframes sli{from{transform:translateY(-8px);opacity:0}to{transform:translateY(0);opacity:1}}
-.sli{animation:sli .3s ease;}
-@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(1.3)}}
-@keyframes pop-in{from{transform:scale(.92);opacity:0}to{transform:scale(1);opacity:1}}
-@keyframes toast-in{from{transform:translateX(110%);opacity:0}to{transform:translateX(0);opacity:1}}
-@keyframes toast-out{from{transform:translateX(0);opacity:1}to{transform:translateX(110%);opacity:0}}
-@keyframes toast-progress{from{width:100%}to{width:0%}}
-.toast-wrap{position:fixed;bottom:1.5rem;right:1.5rem;z-index:300;display:flex;flex-direction:column;gap:.6rem;pointer-events:none;}
-.toast{pointer-events:all;background:var(--bg-card);border-radius:14px;box-shadow:0 8px 32px rgba(0,0,0,.18),0 2px 8px rgba(0,0,0,.1);border:1px solid var(--border2);min-width:300px;max-width:360px;overflow:hidden;animation:toast-in .4s cubic-bezier(.34,1.56,.64,1) forwards;}
-.toast.leaving{animation:toast-out .35s ease forwards;}
-.toast-body{padding:1rem 1.1rem .85rem;}
-.toast-top{display:flex;align-items:flex-start;justify-content:space-between;gap:.5rem;margin-bottom:.55rem;}
-.toast-icon{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1.2rem;flex-shrink:0;}
-.toast-icon.ok{background:#e8f5e9;}
-.toast-icon.ot{background:#fff3e0;}
-.dark .toast-icon.ok{background:#0a2410;}
-.dark .toast-icon.ot{background:#1f1000;}
-.toast-close{background:none;border:none;color:var(--text3);cursor:pointer;font-size:1rem;padding:.1rem .3rem;border-radius:4px;line-height:1;}
-.toast-close:hover{background:var(--grp-bg);}
-.toast-title{font-family:'Noto Serif Thai',serif;font-size:.95rem;font-weight:700;color:var(--text);margin-bottom:.18rem;}
-.toast-sub{font-size:.78rem;color:var(--text3);line-height:1.4;}
-.toast-detail{background:var(--grp-bg);border-radius:8px;padding:.5rem .75rem;margin-bottom:.65rem;border:1px solid var(--border3);}
-.toast-detail-row{display:flex;gap:.4rem;font-size:.8rem;color:var(--text2);margin-bottom:.18rem;}
-.toast-detail-row:last-child{margin-bottom:0;}
-.toast-detail-row span:first-child{color:var(--text3);min-width:14px;}
-.toast-actions{display:flex;gap:.5rem;}
-.toast-btn-primary{background:linear-gradient(135deg,#1a237e,#1565c0);color:#fff;border:none;padding:.48rem 1rem;border-radius:7px;font-family:'Sarabun',sans-serif;font-size:.82rem;font-weight:600;cursor:pointer;flex:1;transition:all .15s;}
-.toast-btn-primary:hover{opacity:.9;}
-.toast-btn-sec{background:var(--grp-bg);border:1px solid var(--border);color:var(--text2);padding:.48rem .9rem;border-radius:7px;font-family:'Sarabun',sans-serif;font-size:.82rem;cursor:pointer;}
-.toast-btn-sec:hover{border-color:var(--border3);}
-.toast-bar{height:3px;background:linear-gradient(90deg,#1a237e,#42a5f5);animation:toast-progress 10s linear forwards;}
-.toast-bar.ot{background:linear-gradient(90deg,#e65100,#ff6f00);}
+body.dark .pop-close{color:#7986cb;}
+
+/* ── Cancel card ── */
 .cancel-card{background:var(--pop-bg);border-radius:16px;padding:2rem;max-width:400px;width:100%;box-shadow:var(--pop-sh);border-top:5px solid #c62828;animation:pop-in .25s ease;}
 .cancel-ttl{font-family:'Noto Serif Thai',serif;font-size:1.05rem;font-weight:700;color:#c62828;margin-bottom:.5rem;}
 .cancel-info{background:var(--grp-bg);border-radius:8px;padding:.75rem 1rem;margin-bottom:1.1rem;font-size:.85rem;color:var(--text2);border:1px solid var(--border3);}
@@ -320,1062 +194,1606 @@ body{font-family:'Sarabun',sans-serif;}
 .btn-cancel-confirm:disabled{opacity:.4;cursor:default;}
 .btn-cancel-back{background:var(--grp-bg);border:1px solid var(--border);color:var(--text2);padding:.72rem 1.2rem;border-radius:8px;font-family:'Sarabun',sans-serif;font-size:.92rem;cursor:pointer;flex:1;}
 .btn-cancel-back:hover{border-color:var(--border3);}
-/* Webhook status badge */
-.wh-badge{display:inline-flex;align-items:center;gap:.3rem;font-size:.7rem;padding:2px 8px;border-radius:10px;font-weight:600;}
-.wh-sending{background:#fff3e0;color:#e65100;}
-.wh-ok{background:#e8f5e9;color:#2e7d32;}
-.wh-err{background:#fce4ec;color:#c62828;}
-.dark .wh-sending{background:#1f1000;color:#ff8a50;}
-.dark .wh-ok{background:#0a2410;color:#66bb6a;}
-.dark .wh-err{background:#2a0a10;color:#ef9a9a;}
-@media(max-width:700px){.fgrid{grid-template-columns:1fr;}.main{padding:1rem;}.cal-cell{min-height:55px;}.hdr-right{gap:.25rem;}}
-`;
 
-    // ── PinPad ───────────────────────────────────────────────────────────────
-    function PinPad({ onSuccess, onBack }) {
-      const [pin, setPin] = useState("");
-      const [err, setErr] = useState(false);
-      const press = (d) => {
-        if (pin.length >= 4) return;
-        const n = pin + d;
-        setPin(n); setErr(false);
-        if (n.length === 4) setTimeout(() => { n === TEACHER_PIN ? onSuccess() : (setErr(true), setPin("")); }, 180);
-      };
-      return (
+/* ── Admin ── */
+.adm-hdr{background:linear-gradient(135deg,#4a148c,#6a1b9a);color:#fff;padding:1.1rem 1.5rem;border-radius:12px 12px 0 0;display:flex;align-items:center;gap:.75rem;}
+.adm-hdr h3{font-family:'Noto Serif Thai',serif;font-size:1.05rem;font-weight:700;}
+.adm-hdr p{font-size:.8rem;opacity:.8;}
+.adm-body{background:var(--adm-body);border-radius:0 0 12px 12px;border:1px solid var(--border2);border-top:none;overflow:hidden;}
+
+/* ── Login ── */
+.login-bg{min-height:100vh;background:linear-gradient(160deg,#0d1b6e,#1a237e 45%,#1565c0);display:flex;align-items:center;justify-content:center;padding:1.5rem;position:relative;overflow:hidden;}
+.login-bg::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 70% 20%,rgba(255,255,255,.07) 0%,transparent 60%),radial-gradient(ellipse at 20% 80%,rgba(21,101,192,.3) 0%,transparent 50%);pointer-events:none;}
+.login-card{background:#fff;border-radius:20px;padding:2.5rem 2rem;max-width:420px;width:100%;box-shadow:0 30px 80px rgba(0,0,0,.35);position:relative;}
+body.dark .login-card{background:#1a1d27;box-shadow:0 30px 80px rgba(0,0,0,.6);}
+.login-top{text-align:center;margin-bottom:2rem;}
+.login-logo{width:70px;height:70px;background:linear-gradient(135deg,#1a237e,#1565c0);border-radius:18px;display:flex;align-items:center;justify-content:center;font-size:1.9rem;margin:0 auto .9rem;box-shadow:0 8px 20px rgba(26,35,126,.35);}
+.login-title{font-family:'Noto Serif Thai',serif;font-size:1.2rem;font-weight:700;color:#1a237e;line-height:1.3;}
+body.dark .login-title{color:#7986cb;}
+.login-sub{font-size:.78rem;color:#999;margin-top:.3rem;}
+body.dark .login-sub{color:#555;}
+.dev-login-btn{padding:.7rem;border-radius:10px;border:2px solid #c5cae9;background:#f8f9ff;color:var(--text);font-family:'Sarabun',sans-serif;font-size:.85rem;font-weight:600;cursor:pointer;transition:all .15s;text-align:left;width:100%;}
+.dev-login-btn:hover{border-color:#1a237e;background:#f0f4ff;}
+body.dark .dev-login-btn{background:#1a1d27;border-color:#2e3248;}
+body.dark .dev-login-btn:hover{background:#1f2235;border-color:#3949ab;}
+.otp-err{background:#fce4ec;border:1px solid #ef9a9a;border-radius:8px;padding:.55rem .9rem;font-size:.83rem;color:#c62828;text-align:center;margin-bottom:.7rem;}
+body.dark .otp-err{background:#2a0a10;border-color:#c62828;color:#ef9a9a;}
+.demo-hint{text-align:center;font-size:.7rem;color:#bbb;margin-top:.45rem;}
+body.dark .demo-hint{color:#444860;}
+
+/* ── Toast ── */
+@keyframes toast-in{from{transform:translateX(110%);opacity:0}to{transform:translateX(0);opacity:1}}
+@keyframes toast-out{from{transform:translateX(0);opacity:1}to{transform:translateX(110%);opacity:0}}
+@keyframes toast-progress{from{width:100%}to{width:0%}}
+.toast-wrap{position:fixed;bottom:1.5rem;right:1.5rem;z-index:300;display:flex;flex-direction:column;gap:.6rem;pointer-events:none;}
+.toast{pointer-events:all;background:var(--bg-card);border-radius:14px;box-shadow:0 8px 32px rgba(0,0,0,.18),0 2px 8px rgba(0,0,0,.1);border:1px solid var(--border2);min-width:300px;max-width:360px;overflow:hidden;animation:toast-in .4s cubic-bezier(.34,1.56,.64,1) forwards;}
+.toast.leaving{animation:toast-out .35s ease forwards;}
+.toast-body{padding:1rem 1.1rem .85rem;}
+.toast-top{display:flex;align-items:flex-start;justify-content:space-between;gap:.5rem;margin-bottom:.55rem;}
+.toast-icon{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1.2rem;flex-shrink:0;background:#e8f5e9;}
+.toast-icon.ot{background:#fff3e0;}
+body.dark .toast-icon{background:#0a2410;}
+body.dark .toast-icon.ot{background:#1f1000;}
+.toast-close{background:none;border:none;color:var(--text3);cursor:pointer;font-size:1rem;padding:.1rem .3rem;border-radius:4px;line-height:1;}
+.toast-title{font-family:'Noto Serif Thai',serif;font-size:.95rem;font-weight:700;color:var(--text);margin-bottom:.18rem;}
+.toast-sub{font-size:.78rem;color:var(--text3);line-height:1.4;}
+.toast-detail{background:var(--grp-bg);border-radius:8px;padding:.5rem .75rem;margin-bottom:.65rem;border:1px solid var(--border3);}
+.toast-detail-row{display:flex;gap:.4rem;font-size:.8rem;color:var(--text2);margin-bottom:.18rem;}
+.toast-detail-row:last-child{margin-bottom:0;}
+.toast-actions{display:flex;gap:.5rem;}
+.toast-btn-primary{background:linear-gradient(135deg,#1a237e,#1565c0);color:#fff;border:none;padding:.48rem 1rem;border-radius:7px;font-family:'Sarabun',sans-serif;font-size:.82rem;font-weight:600;cursor:pointer;flex:1;transition:all .15s;}
+.toast-btn-primary:hover{opacity:.9;}
+.toast-btn-sec{background:var(--grp-bg);border:1px solid var(--border);color:var(--text2);padding:.48rem .9rem;border-radius:7px;font-family:'Sarabun',sans-serif;font-size:.82rem;cursor:pointer;}
+.toast-btn-sec:hover{border-color:var(--border3);}
+.toast-bar{height:3px;background:linear-gradient(90deg,#1a237e,#42a5f5);animation:toast-progress 10s linear forwards;}
+.toast-bar.ot{background:linear-gradient(90deg,#e65100,#ff6f00);}
+.toast-code-box{background:var(--bg-sub);border:2px dashed var(--border3);border-radius:10px;padding:.6rem 1rem;margin-bottom:.75rem;text-align:center;}
+
+/* ── Animations ── */
+@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}
+.shake{animation:shake .3s ease;}
+@keyframes sli{from{transform:translateY(-8px);opacity:0}to{transform:translateY(0);opacity:1}}
+.sli{animation:sli .3s ease;}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(1.3)}}
+@keyframes pop-in{from{transform:scale(.92);opacity:0}to{transform:scale(1);opacity:1}}
+
+/* ── Room status cards ── */
+.room-status-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:1rem;}
+.room-card{border-radius:12px;overflow:hidden;border:2px solid #4caf50;}
+.room-card.busy{border-color:#f44336;}
+.room-card.issue{border-color:#ff9800;}
+.room-card-hdr{padding:1rem 1.2rem .75rem;}
+.room-card-body{padding:.85rem 1.2rem;}
+
+/* ── Report ── */
+.report-grid{display:grid;grid-template-columns:1fr 1fr;gap:1.25rem;}
+.report-item{border-radius:9px;padding:.65rem .9rem;}
+
+/* ── Responsive ── */
+@media(max-width:700px){
+  .fgrid{grid-template-columns:1fr;}
+  .main{padding:1rem;}
+  .cal-cell{min-height:55px;}
+  .hdr-right{gap:.25rem;}
+  .report-grid{grid-template-columns:1fr;}
+  .room-status-grid{grid-template-columns:1fr;}
+}
+</style>
+</head>
+<body>
+
+<!-- ══ LOGIN SCREEN ══ -->
+<div id="login-screen">
+  <div class="login-bg">
+    <button id="login-dark-btn" style="position:absolute;top:1rem;right:1rem;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:white;padding:.35rem .8rem;border-radius:20px;cursor:pointer;font-family:Sarabun,sans-serif;font-size:.78rem;">🌙 Dark</button>
+    <div class="login-card">
+      <div class="login-top">
+        <div class="login-logo">🏛️</div>
+        <div class="login-title">ระบบจองห้องออนไลน์</div>
+        <div class="login-sub">Department of Mathematics · Faculty of Science · BUU</div>
+      </div>
+      <div id="login-err" class="otp-err hidden"></div>
+      <!-- Google Sign-In button (renders here when CLIENT_ID is set) -->
+      <div id="g_id_signin" style="display:flex;justify-content:center;margin-bottom:1rem;min-height:44px;"></div>
+      <!-- Dev mode buttons (shown when CLIENT_ID is placeholder) -->
+      <div id="dev-mode-notice" style="padding:.65rem .9rem;background:#fff8e1;border:1px solid #ffb300;border-radius:10px;font-size:.78rem;color:#f57f17;margin-bottom:1.1rem;line-height:1.6;">
+        <div style="font-weight:700;margin-bottom:.3rem;">🛠 Dev Mode — Google Client ID ยังไม่ได้ตั้งค่า</div>
+        <div>แก้ไข <code style="background:rgba(0,0,0,.1);padding:1px 5px;border-radius:4px;">GOOGLE_CLIENT_ID</code> ในโค้ดก่อน production</div>
+      </div>
+      <div id="dev-buttons" style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem;margin-bottom:1rem;">
+        <button class="dev-login-btn" onclick="devLogin('นิสิต','66030634@go.buu.ac.th','นิสิต ทดสอบ','')">
+          🎓 นิสิต
+          <div style="font-size:.67rem;font-weight:400;color:var(--text3);margin-top:.2rem;font-family:monospace;"><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="eadcdcdad9dadcd9deaa8d85c4889f9fc48b89c49e82">[email&#160;protected]</a></div>
+        </button>
+        <button class="dev-login-btn" onclick="devLogin('อาจารย์','apisit@buu.ac.th','อ.อภิสิทธิ์','')">
+          👨‍🏫 อาจารย์
+          <div style="font-size:.67rem;font-weight:400;color:var(--text3);margin-top:.2rem;font-family:monospace;"><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="81e0f1e8f2e8f5c1e3f4f4afe0e2aff5e9">[email&#160;protected]</a></div>
+        </button>
+      </div>
+      <div style="padding:.65rem .85rem;background:#f8f9ff;border-radius:8px;border:1px solid #c5cae9;font-size:.74rem;color:var(--text3);">
+        <div style="font-weight:700;color:#1a237e;margin-bottom:.4rem;">🔒 บัญชีที่เข้าสู่ระบบได้</div>
+        <div style="font-family:monospace;font-size:.71rem;padding:2px 0;border-bottom:1px solid #eee;"><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="86b0b0b6b5b6b0b5b2c6e1e9a8e4f3f3a8e7e5a8f2ee">[email&#160;protected]</a> <span style="color:#aaa;">(นิสิต — ตัวเลข)</span></div>
+        <div style="font-family:monospace;font-size:.71rem;padding:2px 0;border-bottom:1px solid #eee;"><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="b8d9c8d1cbd1ccf8dfd796dacdcd96d9db96ccd0">[email&#160;protected]</a> <span style="color:#aaa;">(อาจารย์ — ตัวอักษร)</span></div>
+        <div style="font-family:monospace;font-size:.71rem;padding:2px 0;"><a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="d2b3a2bba1bba692b0a7a7fcb3b1fca6ba">[email&#160;protected]</a> <span style="color:#aaa;">(อาจารย์ — domain หลัก)</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MAIN APP ══ -->
+<div id="app-screen" class="app-wrap hidden">
+
+  <!-- Header -->
+  <header class="hdr">
+    <div class="hdr-inner">
+      <div class="hdr-brand">
+        <div class="hdr-logo">🏛️</div>
         <div>
-          <div className="pin-label">🔑 กรอก PIN อาจารย์ (4 หลัก)</div>
-          <div className="pin-dots">{[0,1,2,3].map(i=><div key={i} className={`pin-dot${i<pin.length?" filled":""}`}/>)}</div>
-          {err && <div className="pin-error shake">❌ PIN ไม่ถูกต้อง กรุณาลองใหม่</div>}
-          <div className="pin-pad">
-            {[1,2,3,4,5,6,7,8,9].map(n=><button key={n} className="pin-key" onClick={()=>press(String(n))}>{n}</button>)}
-            <div/><button className="pin-key pin-zero" onClick={()=>press("0")}>0</button>
-            <button className="pin-key pin-del" onClick={()=>{setPin(p=>p.slice(0,-1));setErr(false);}}>⌫</button>
-          </div>
-          <button className="btn-back" onClick={onBack}>← กลับเลือกสถานะ</button>
-          <div className="demo-hint">PIN สาธิต: 1234</div>
+          <div class="hdr-title">ระบบจองห้องออนไลน์</div>
+          <div class="hdr-sub">Department of Mathematics · Faculty of Science</div>
         </div>
-      );
+      </div>
+      <div class="hdr-right">
+        <nav id="nav-bar" style="display:flex;gap:.2rem;flex-wrap:wrap;"></nav>
+        <button class="sync-btn" id="sync-btn" title="Sync กับ Google Sheets" onclick="fetchFromSheets()">⚪ Sheets</button>
+        <button class="dm-btn" id="dm-btn" onclick="toggleDark()">🌙 Dark</button>
+        <div class="chip" id="user-chip"></div>
+        <button class="btn-out" onclick="logout()">ออกจากระบบ</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="main">
+    <div class="tabs" id="tab-bar"></div>
+
+    <!-- TAB: BOOKING -->
+    <div id="tab-booking" class="tab-content"></div>
+
+    <!-- TAB: STATUS -->
+    <div id="tab-status" class="tab-content hidden"></div>
+
+    <!-- TAB: LIST -->
+    <div id="tab-list" class="tab-content hidden"></div>
+
+    <!-- TAB: CALENDAR -->
+    <div id="tab-calendar" class="tab-content hidden"></div>
+
+    <!-- TAB: REPORT -->
+    <div id="tab-report" class="tab-content hidden"></div>
+
+    <!-- TAB: ADMIN -->
+    <div id="tab-admin" class="tab-content hidden"></div>
+  </main>
+</div>
+
+<!-- Toast container -->
+<div class="toast-wrap" id="toast-wrap"></div>
+
+<!-- Popup (calendar detail) -->
+<div class="pop-ov hidden" id="popup-modal">
+  <div class="pop-card" onclick="event.stopPropagation()">
+    <div class="pop-ttl">📋 รายละเอียดการจอง</div>
+    <div id="popup-content"></div>
+    <button class="pop-close" onclick="closePopup()">ปิด</button>
+  </div>
+</div>
+
+<!-- Cancel Modal -->
+<div class="pop-ov hidden" id="cancel-modal">
+  <div class="cancel-card" onclick="event.stopPropagation()">
+    <div style="font-size:2rem;text-align:center;margin-bottom:.5rem;">🗑️</div>
+    <div class="cancel-ttl" style="text-align:center;">ยืนยันการยกเลิกการจอง</div>
+    <p style="font-size:.82rem;color:var(--text3);text-align:center;margin-bottom:1.1rem;">
+      กรุณากรอก <strong style="color:#1a237e;">รหัสการจอง</strong> เพื่อยืนยันตัวตน
+    </p>
+    <div class="cancel-info" id="cancel-booking-info"></div>
+    <div id="cancel-code-hint" style="background:#e8eaf6;border:1px solid #c5cae9;border-radius:8px;padding:.6rem .9rem;margin-bottom:1rem;display:flex;align-items:center;gap:.6rem;">
+      <span style="font-size:1.1rem;">🔑</span>
+      <div>
+        <div style="font-size:.75rem;color:var(--text3);margin-bottom:.15rem;">รหัสการจองของคุณ</div>
+        <div id="cancel-code-display" style="font-family:monospace;font-size:.95rem;font-weight:700;color:#1a237e;letter-spacing:2px;"></div>
+      </div>
+    </div>
+    <div class="fg" style="margin-bottom:.5rem;">
+      <label class="flabel">รหัสการจอง <span>*</span></label>
+      <input class="finput" id="cancel-code-input" placeholder="เช่น BK-A3F9"
+        style="font-family:monospace;letter-spacing:2px;font-weight:700;text-transform:uppercase;"
+        oninput="onCancelInput(this)" onkeydown="if(event.key==='Enter')confirmCancel()">
+      <div id="cancel-err" style="font-size:.78rem;color:#c62828;margin-top:.3rem;display:none;"></div>
+      <div id="cancel-ok" style="font-size:.78rem;color:#2e7d32;margin-top:.3rem;display:none;">✅ รหัสถูกต้อง สามารถยกเลิกได้</div>
+    </div>
+    <div class="cancel-actions">
+      <button class="btn-cancel-back" onclick="closeCancelModal()">← กลับ</button>
+      <button class="btn-cancel-confirm" id="cancel-confirm-btn" disabled onclick="confirmCancel()">ยืนยันยกเลิกการจอง</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════════
+//  CONFIG
+// ══════════════════════════════════════════════════════════
+const N8N_WEBHOOK_URL = "https://n8n.mathburaphahub.com/webhook-test/room-booking";
+const GOOGLE_CLIENT_ID = "YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com";
+const ADMIN_PW = "admin1234";
+const ALLOWED_DOMAINS = ["buu.ac.th", "go.buu.ac.th"];
+
+// ══════════════════════════════════════════════════════════
+//  CONSTANTS
+// ══════════════════════════════════════════════════════════
+const ROOMS = [
+  { id:"MA103", name:"MA103",               needsApproval:false, icon:"📚", note:"นิสิต: จ.-ศ. 08:00-17:00 | อาจารย์/เจ้าหน้าที่: ทุกเวลา ไม่จำกัด" },
+  { id:"MA105", name:"MA105",               needsApproval:false, icon:"📖", note:"นิสิต: จ.-ศ. 08:00-17:00 | อาจารย์/เจ้าหน้าที่: ทุกเวลา ไม่จำกัด" },
+  { id:"MA106", name:"MA106 (คอมพิวเตอร์)", needsApproval:true,  icon:"💻", note:"🔐 ต้องมีอาจารย์ Approve ก่อนเสมอ — ระบบจะส่ง Email ขออนุมัติอัตโนมัติ" },
+  { id:"MA107", name:"MA107",               needsApproval:true,  icon:"🏫", note:"🔐 ต้องมีอาจารย์ Approve ก่อนเสมอ — ระบบจะส่ง Email ขออนุมัติอัตโนมัติ" },
+  { id:"MA208", name:"MA208",               needsApproval:true,  icon:"🎓", note:"🔐 ต้องมีอาจารย์ Approve ก่อนเสมอ — ระบบจะส่ง Email ขออนุมัติอัตโนมัติ" },
+];
+// PURPOSES สำหรับนิสิต (ไม่มีสอบสัมมนา/สอบโครงงาน)
+const PURPOSES = ["ซ้อมสัมมนา","ซ้อมโครงงาน/โปรเจค","ทำงานกลุ่ม","อ่านหนังสือ","ประชุม","อื่น ๆ"];
+// PURPOSES สำหรับอาจารย์ (มีครบทุกวัตถุประสงค์)
+const PURPOSES_TEACHER = ["ซ้อมสัมมนา","ซ้อมโครงงาน/โปรเจค","สอบสัมมนา","สอบโครงงาน/โปรเจค","ทำงานกลุ่ม","อ่านหนังสือ","ประชุม","อื่น ๆ"];
+const MONTHS = ["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."];
+const DAYS = ["อา","จ","อ","พ","พฤ","ศ","ส"];
+const ROOM_COLORS = {"MA103":"#1565c0","MA105":"#00838f","MA106":"#e65100","MA107":"#4a148c","MA208":"#2e7d32"};
+
+const SLOTS_1H = [
+  ["08:00","09:00"],["09:00","10:00"],["10:00","11:00"],["11:00","12:00"],
+  ["13:00","14:00"],["14:00","15:00"],["15:00","16:00"],["16:00","17:00"],
+];
+
+const PURPOSE_RULES = {
+  "ซ้อมสัมมนา":         { hrs:1 },
+  "ซ้อมโครงงาน/โปรเจค": { hrs:1 },
+  "สอบสัมมนา":          { hrs:2 },
+  "สอบโครงงาน/โปรเจค":  { hrs:2 },
+  "ทำงานกลุ่ม":          { hrs:1 },
+  "อ่านหนังสือ":         { hrs:1 },
+  "ประชุม":              { hrs:1 },
+  "อื่น ๆ":             { hrs:1, needsReason:true },
+};
+
+const ST = {
+  approved:         { bg:"#e8f5e9", text:"#2e7d32",  dbg:"#0a2410", dtext:"#66bb6a",  label:"✅ อนุมัติแล้ว" },
+  pending:          { bg:"#fff8e1", text:"#f57f17",  dbg:"#1f1500", dtext:"#ffb300",  label:"⏳ รอดำเนินการ" },
+  cancelled:        { bg:"#fce4ec", text:"#c62828",  dbg:"#2a0a10", dtext:"#ef9a9a",  label:"❌ ยกเลิกแล้ว" },
+  awaiting_advisor: { bg:"#fce4ec", text:"#ad1457",  dbg:"#2a0510", dtext:"#f48fb1",  label:"📨 รออาจารย์อนุมัติ" },
+  rejected:         { bg:"#fce4ec", text:"#b71c1c",  dbg:"#2a0000", dtext:"#ef5350",  label:"🚫 ปฏิเสธ" },
+};
+
+// ══════════════════════════════════════════════════════════
+//  STATE
+// ══════════════════════════════════════════════════════════
+let session = null;
+let dark = false;
+let currentTab = "booking";
+let bookings = [
+  {id:1,code:"BK-DEMO",name:"สมชาย ใจดี",role:"นิสิต",room:"MA103",date:"2026-03-09",startTime:"09:00",endTime:"10:00",purpose:"ทำงานกลุ่ม",groupSize:1,status:"approved",members:[],advisorName:"",advisorEmail:"",isOT:false},
+  {id:2,code:"BK-DEM2",name:"ผศ.ดร.วิภา รักเรียน",role:"อาจารย์",room:"MA107",date:"2026-03-10",startTime:"13:00",endTime:"15:00",purpose:"สอบสัมมนา",groupSize:2,status:"approved",members:[],advisorName:"",advisorEmail:"",isOT:false},
+  {id:3,code:"BK-DEM3",name:"นิภา สุขสันต์",role:"นิสิต",room:"MA105",date:"2026-03-11",startTime:"10:00",endTime:"13:00",purpose:"ซ้อมสัมมนา",groupSize:3,status:"pending",members:[],advisorName:"",advisorEmail:"",isOT:false},
+  {id:4,code:"BK-DEM4",name:"รศ.ดร.ประสิทธิ์ มั่นคง",role:"อาจารย์",room:"MA208",date:"2026-03-12",startTime:"08:30",endTime:"10:30",purpose:"ประชุม",groupSize:1,status:"approved",members:[],advisorName:"",advisorEmail:"",isOT:false},
+  {id:5,code:"BK-DEM5",name:"ธนพล เก่งกาจ",role:"นิสิต",room:"MA103",date:"2026-03-07",startTime:"18:00",endTime:"19:00",purpose:"อ่านหนังสือ",groupSize:1,status:"awaiting_advisor",members:[],advisorName:"อ.สมชาย",advisorEmail:"somchai@buu.ac.th",isOT:true},
+];
+let reports = [
+  {id:1,room:"MA103",type:"projector",detail:"โปรเจคเตอร์เปิดไม่ติด",reporter:"สมชาย ใจดี",date:"2026-03-06",status:"open"},
+];
+
+// Form state
+let form = {name:"",date:"",startTime:"",endTime:"",room:"",purpose:"",groupSize:1,members:[],advisorName:"",advisorEmail:"",isOT:false,slot:"",reason:""};
+let reportForm = {room:"",type:"",detail:"",reporter:""};
+let calDate = new Date(2026,2,1);
+let calFilterRoom = "all";
+let listFilterRoom = "all";
+let adminAuth = false;
+let cancelTarget = null;
+let syncStatus = "idle";
+let lastSync = null;
+let pollInterval = null;
+let nowTime = getNow();
+
+// ══════════════════════════════════════════════════════════
+//  HELPERS
+// ══════════════════════════════════════════════════════════
+function getNow(){
+  const n=new Date();
+  return `${String(n.getHours()).padStart(2,"0")}:${String(n.getMinutes()).padStart(2,"0")}`;
+}
+function toMin(t){ if(!t)return 0; const[h,m]=t.split(":").map(Number); return h*60+m; }
+const MIN_TO_TIME = m => `${String(Math.floor(m/60)).padStart(2,"0")}:${String(m%60).padStart(2,"0")}`;
+
+function calcDuration(baseHrs, groupSize){
+  return Math.min(baseHrs * Math.min(groupSize, 4), 4);
+}
+
+function getGroupSlots(baseHrs, groupSize){
+  const totalHrs = calcDuration(baseHrs, groupSize);
+  const allStarts = SLOTS_1H.map(([s])=>toMin(s));
+  const result = [];
+  for(let i=0;i<allStarts.length;i++){
+    const startMin = allStarts[i];
+    const endMin   = startMin + totalHrs*60;
+    if(startMin < 720 && endMin > 720) continue;
+    if(endMin > 1020) continue;
+    const mids = [];
+    for(let m=startMin+60;m<endMin;m+=60) mids.push(m);
+    if(!mids.every(m=>allStarts.includes(m))) continue;
+    result.push([MIN_TO_TIME(startMin), MIN_TO_TIME(endMin)]);
+  }
+  return result;
+}
+
+function getRoleFromEmail(email){
+  const lower = email.toLowerCase().trim();
+  const [username, domain] = lower.split("@");
+  if(!username||!domain) return null;
+  if(!ALLOWED_DOMAINS.includes(domain)) return null;
+  if(domain==="go.buu.ac.th" && /^\d+$/.test(username)) return "นิสิต";
+  return "อาจารย์";
+}
+
+function genCode(){ return "BK-" + Math.random().toString(36).toUpperCase().slice(2,6); }
+
+function stBadgeStyle(s){
+  const d = ST[s];
+  if(!d) return "";
+  const bg = dark ? d.dbg : d.bg;
+  const color = dark ? d.dtext : d.text;
+  return `background:${bg};color:${color};`;
+}
+
+function sheetRowToBooking(row){
+  return {
+    id:          row.id          || String(Date.now()),
+    code:        row.code        || row["รหัสการจอง"]     || "",
+    name:        row.name        || row["ชื่อผู้จอง"]     || "",
+    date:        row.date        || row["วันที่"]          || "",
+    startTime:   row.startTime   || row["เวลาเริ่ม"]      || "",
+    endTime:     row.endTime     || row["เวลาสิ้นสุด"]    || "",
+    room:        row.room        || row["ห้อง"]            || "",
+    purpose:     row.purpose     || row["วัตถุประสงค์"]   || "",
+    groupSize:   parseInt(row.groupSize || row["จำนวนคน"] || 1),
+    role:        row.role        || row["บทบาท"]           || "นิสิต",
+    status:      row.status      || row["status"]          || "pending",
+    advisorName: row.advisorName || row["ชื่ออาจารย์"]    || "",
+    advisorEmail:row.advisorEmail|| row["emailอาจารย์"]   || "",
+    isOT:        row.isOT===true || row.isOT==="true"     || row["นอกเวลา"]==="ใช่",
+    members:     (()=>{ try{ return typeof row.members==="string"?JSON.parse(row.members):(row.members||[]); }catch{ return []; } })(),
+  };
+}
+
+// ══════════════════════════════════════════════════════════
+//  n8n SEND
+// ══════════════════════════════════════════════════════════
+async function n8nSend(payload){
+  try{
+    await fetch(N8N_WEBHOOK_URL,{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify(payload),
+    });
+  }catch(e){ console.warn("[n8n] send failed:", e.message); }
+}
+
+// ══════════════════════════════════════════════════════════
+//  FETCH FROM SHEETS
+// ══════════════════════════════════════════════════════════
+async function fetchFromSheets(quiet=false){
+  if(!quiet){ syncStatus="loading"; updateSyncBtn(); }
+  try{
+    const res = await fetch(N8N_WEBHOOK_URL,{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({action:"list_bookings"}),
+    });
+    if(!res.ok) throw new Error(`HTTP ${res.status}`);
+    const json = await res.json();
+    const rows = Array.isArray(json)?json:(json.data||json.bookings||[]);
+    if(rows.length>0){ bookings = rows.map(sheetRowToBooking); }
+    syncStatus="ok"; lastSync=new Date();
+  }catch(e){
+    syncStatus="error";
+    console.warn("[n8n] fetch failed:", e.message);
+  }
+  updateSyncBtn();
+  renderCurrentTab();
+}
+
+function updateSyncBtn(){
+  const btn = document.getElementById("sync-btn");
+  if(!btn) return;
+  const icons = {loading:"⏳",ok:"🟢",error:"🔴",idle:"⚪"};
+  const icon = icons[syncStatus]||"⚪";
+  let label = "Sheets";
+  if(syncStatus==="loading") label="กำลัง sync...";
+  else if(syncStatus==="ok" && lastSync){
+    label=`Sheets ${lastSync.toLocaleTimeString("th-TH",{hour:"2-digit",minute:"2-digit"})}`;
+  }else if(syncStatus==="error") label="ไม่ได้เชื่อม";
+  btn.innerHTML=`${icon} ${label}`;
+}
+
+// ══════════════════════════════════════════════════════════
+//  AUTH
+// ══════════════════════════════════════════════════════════
+function devLogin(role, email, name, picture){
+  n8nSend({action:"google_login",email,role,name,idToken:"dev"});
+  doLogin(role, email, name, picture);
+}
+
+function doLogin(role, email, name, picture){
+  session = {role, email, displayName:name, picture};
+  document.getElementById("login-screen").classList.add("hidden");
+  document.getElementById("app-screen").classList.remove("hidden");
+  buildNav();
+  setTab("booking");
+  fetchFromSheets();
+  if(pollInterval) clearInterval(pollInterval);
+  pollInterval = setInterval(()=>fetchFromSheets(true), 30000);
+}
+
+function logout(){
+  session=null; adminAuth=false;
+  document.getElementById("app-screen").classList.add("hidden");
+  document.getElementById("login-screen").classList.remove("hidden");
+  if(pollInterval){ clearInterval(pollInterval); pollInterval=null; }
+}
+
+// ══════════════════════════════════════════════════════════
+//  GOOGLE SSO
+// ══════════════════════════════════════════════════════════
+function initGoogleSignIn(){
+  if(GOOGLE_CLIENT_ID.startsWith("YOUR_")) return; // dev mode
+  document.getElementById("dev-mode-notice").style.display="none";
+  document.getElementById("dev-buttons").style.display="none";
+  if(!window.google) return;
+  google.accounts.id.initialize({
+    client_id: GOOGLE_CLIENT_ID,
+    callback: handleGoogleCredential,
+    auto_select: false,
+  });
+  google.accounts.id.renderButton(document.getElementById("g_id_signin"),{
+    type:"standard", theme: dark?"filled_black":"outline",
+    size:"large", text:"signin_with", shape:"rectangular",
+    width:"340", logo_alignment:"left",
+  });
+}
+
+function handleGoogleCredential(response){
+  try{
+    const payload = JSON.parse(atob(response.credential.split(".")[1]));
+    const email = (payload.email||"").toLowerCase();
+    const name = payload.name||"";
+    const picture = payload.picture||"";
+    const role = getRoleFromEmail(email);
+    if(!role){
+      showLoginErr("❌ บัญชีนี้ไม่ได้รับอนุญาต — กรุณาใช้อีเมลมหาวิทยาลัย BUU");
+      return;
+    }
+    n8nSend({action:"google_login",email,role,name,idToken:response.credential});
+    doLogin(role,email,name,picture);
+  }catch(e){
+    showLoginErr("❌ เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง");
+  }
+}
+
+function showLoginErr(msg){
+  const el = document.getElementById("login-err");
+  el.textContent=msg; el.classList.remove("hidden");
+}
+
+// ══════════════════════════════════════════════════════════
+//  DARK MODE
+// ══════════════════════════════════════════════════════════
+function toggleDark(){
+  dark=!dark;
+  document.body.classList.toggle("dark",dark);
+  document.getElementById("dm-btn").textContent = dark?"☀️ Light":"🌙 Dark";
+  document.getElementById("login-dark-btn").textContent = dark?"☀️ Light":"🌙 Dark";
+  renderCurrentTab();
+}
+document.getElementById("login-dark-btn").addEventListener("click",toggleDark);
+
+// ══════════════════════════════════════════════════════════
+//  NAVIGATION
+// ══════════════════════════════════════════════════════════
+function getNavItems(){
+  const items = [
+    {key:"booking",icon:"📝",label:"จองห้อง"},
+    {key:"status",icon:"🟢",label:"สถานะห้อง"},
+    {key:"list",icon:"📋",label:"รายการจอง"},
+    {key:"calendar",icon:"📅",label:"ปฏิทิน"},
+    {key:"report",icon:"🔧",label:"แจ้งปัญหา"},
+  ];
+  if(session?.role==="อาจารย์") items.push({key:"admin",icon:"🔐",label:"เจ้าหน้าที่"});
+  return items;
+}
+
+function buildNav(){
+  const items = getNavItems();
+  const nav = document.getElementById("nav-bar");
+  const tabs = document.getElementById("tab-bar");
+  nav.innerHTML = items.map(n=>`<button class="nav-btn${currentTab===n.key?" active":""}" onclick="setTab('${n.key}')">${n.icon} ${n.label}</button>`).join("");
+  tabs.innerHTML = items.map(n=>`<button class="tab${currentTab===n.key?" active":""}" onclick="setTab('${n.key}')">${n.icon} ${n.label}</button>`).join("");
+
+  // User chip
+  const chip = document.getElementById("user-chip");
+  const img = session?.picture ? `<img src="${session.picture}" style="width:22px;height:22px;border-radius:50%;flex-shrink:0;border:1px solid rgba(255,255,255,.3);" onerror="this.style.display='none'">` : `<span>${session?.role==="นิสิต"?"🎓":"👨‍🏫"}</span>`;
+  chip.innerHTML = `${img}<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:150px;">${session?.displayName||session?.email}</span>`;
+}
+
+function setTab(key){
+  currentTab = key;
+  document.querySelectorAll(".tab-content").forEach(el=>{
+    el.classList.toggle("hidden", !el.id.endsWith(key));
+  });
+  buildNav();
+  renderCurrentTab();
+}
+
+function renderCurrentTab(){
+  const map = {
+    booking: renderBooking,
+    status:  renderStatus,
+    list:    renderList,
+    calendar:renderCalendar,
+    report:  renderReport,
+    admin:   renderAdmin,
+  };
+  if(map[currentTab]) map[currentTab]();
+}
+
+// ══════════════════════════════════════════════════════════
+//  TAB: BOOKING
+// ══════════════════════════════════════════════════════════
+function renderBooking(){
+  const el = document.getElementById("tab-booking");
+  const isTeacher = session.role==="อาจารย์";
+  const rule = (!isTeacher && !form.isOT && PURPOSE_RULES[form.purpose]) ? PURPOSE_RULES[form.purpose] : null;
+  const gs = parseInt(form.groupSize)||1;
+  const duration = rule ? calcDuration(rule.hrs, gs) : 0;
+  const isCapped = rule && (rule.hrs*gs)>4;
+  const availableSlots = rule ? getGroupSlots(rule.hrs, gs) : [];
+
+  // Conflict check for slots
+  const bookedForRoom = form.room && form.date
+    ? bookings.filter(b=>b.room===form.room && b.date===form.date && b.status!=="cancelled")
+    : [];
+  function isConflict(s,e){ return bookedForRoom.some(b=>toMin(s)<toMin(b.endTime)&&toMin(e)>toMin(b.startTime)); }
+  function conflictBk(s,e){ return bookedForRoom.find(b=>toMin(s)<toMin(b.endTime)&&toMin(e)>toMin(b.startTime)); }
+
+  const roomMeta = ROOMS.find(r=>r.id===form.room);
+  const needsAdvisor = !isTeacher && (form.isOT || roomMeta?.needsApproval);
+  const isRoomRestricted = !isTeacher && roomMeta?.needsApproval && !form.isOT;
+
+  // DOW check
+  let dowMsg="";
+  if(form.date && session.role==="นิสิต" && !form.isOT){
+    const dow=new Date(form.date).getDay();
+    const names=["อาทิตย์","จันทร์","อังคาร","พุธ","พฤหัสบดี","ศุกร์","เสาร์"];
+    if(dow===0||dow===6) dowMsg=`<div style="font-size:.76rem;color:#c62828;margin-top:.25rem;font-weight:600;">❌ วัน${names[dow]} — นิสิตจองได้เฉพาะ จ.–ศ. เท่านั้น</div>`;
+    else dowMsg=`<div style="font-size:.76rem;color:#2e7d32;margin-top:.25rem;">✅ วัน${names[dow]}</div>`;
+  }
+
+  // Members rows
+  let membersHtml = "";
+  if(!isTeacher && gs>1){
+    membersHtml = `<div style="margin-top:.7rem;">
+      <div style="font-size:.8rem;font-weight:700;color:${dark?"#7986cb":"#1a237e"};margin-bottom:.5rem;">📋 รายชื่อสมาชิก (${gs-1} คน)</div>`;
+    for(let i=0;i<gs-1;i++){
+      const m = form.members[i]||{name:"",studentId:""};
+      membersHtml += `<div style="display:grid;grid-template-columns:auto 1fr 1fr;gap:.5rem;align-items:center;margin-bottom:.5rem;padding:.5rem .75rem;border-radius:8px;background:${dark?"#13151f":"#f8f9ff"};border:1px solid ${dark?"#2e3248":"#c5cae9"};">
+        <span style="font-size:.78rem;font-weight:700;color:${dark?"#7986cb":"#1a237e"};white-space:nowrap;min-width:48px;">คนที่ ${i+2}</span>
+        <div>
+          <div style="font-size:.7rem;color:var(--text3);margin-bottom:2px;">ชื่อ-สกุล *</div>
+          <input class="finput" style="padding:.38rem .6rem;font-size:.82rem;" placeholder="ชื่อ-นามสกุล"
+            value="${esc(m.name)}" oninput="updateMember(${i},'name',this.value)">
+        </div>
+        <div>
+          <div style="font-size:.7rem;color:var(--text3);margin-bottom:2px;">รหัสนิสิต</div>
+          <input class="finput" style="padding:.38rem .6rem;font-size:.82rem;" placeholder="6xxxxxxx"
+            value="${esc(m.studentId||'')}" oninput="updateMember(${i},'studentId',this.value)">
+        </div>
+      </div>`;
+    }
+    membersHtml += `</div>`;
+  }
+
+  // Slot picker HTML
+  let slotHtml = "";
+  if(rule && !isTeacher && !form.isOT){
+    let capNotice = "";
+    if(isCapped){
+      capNotice=`<div style="margin-bottom:.65rem;padding:.45rem .8rem;background:${dark?"#1f1500":"#fff8e1"};border:1px solid #f9a825;border-radius:7px;font-size:.76rem;color:#e65100;font-weight:600;display:flex;align-items:center;gap:.4rem;">
+        ⚠️ ${gs} คน × ${rule.hrs} ชม. = ${rule.hrs*gs} ชม. → <strong>จำกัดสูงสุด 4 ชม.</strong>
+      </div>`;
+    } else if(gs>1){
+      capNotice=`<div style="margin-bottom:.65rem;padding:.45rem .8rem;background:${dark?"#0a2410":"#e8f5e9"};border:1px solid #a5d6a7;border-radius:7px;font-size:.76rem;color:#2e7d32;font-weight:600;">
+        👥 ${gs} คน × ${rule.hrs} ชม./คน = <strong>${duration} ชม.</strong>
+      </div>`;
     }
 
-    // ── LoginScreen ──────────────────────────────────────────────────────────
-    function LoginScreen({ onLogin, dark, toggleDark }) {
-      const [step, setStep] = useState("choose");
-      return (
-        <div className={`login-bg${dark?" dark":""}`}>
-          <button onClick={toggleDark} style={{position:"absolute",top:"1rem",right:"1rem",background:"rgba(255,255,255,.15)",border:"1px solid rgba(255,255,255,.3)",color:"white",padding:".35rem .8rem",borderRadius:"20px",cursor:"pointer",fontFamily:"Sarabun,sans-serif",fontSize:".78rem",display:"flex",alignItems:"center",gap:".35rem"}}>
-            {dark?"☀️ Light":"🌙 Dark"}
-          </button>
-          <div className="login-card">
-            <div className="login-top">
-              <div className="login-logo">🏛️</div>
-              <div className="login-title">ระบบจองห้องออนไลน์</div>
-              <div className="login-sub">Department of Mathematics · Faculty of Science</div>
-            </div>
-            {step==="choose" ? (
-              <>
-                <div style={{fontSize:".85rem",fontWeight:600,color:dark?"#9da3c4":"#666",marginBottom:".7rem",textAlign:"center"}}>เลือกสถานะของคุณเพื่อเข้าใช้งาน</div>
-                <div className="role-cards">
-                  <button className="role-card" onClick={()=>onLogin("นิสิต")}>
-                    <span className="rc-icon">🎓</span><div className="rc-name">นิสิต</div><div className="rc-desc">เข้าได้ทันที</div>
-                  </button>
-                  <button className="role-card" onClick={()=>setStep("pin")}>
-                    <span className="rc-icon">👨‍🏫</span><div className="rc-name">อาจารย์</div><div className="rc-desc">ต้องยืนยัน PIN</div>
-                  </button>
-                </div>
-                <div style={{textAlign:"center",fontSize:".73rem",color:"#aaa"}}>🔒 ระบบแยกสิทธิ์การใช้งานตามสถานะ</div>
-              </>
-            ) : <PinPad onSuccess={()=>onLogin("อาจารย์")} onBack={()=>setStep("choose")}/>}
+    const slotBtns = availableSlots.length===0
+      ? `<div style="font-size:.8rem;color:#c62828;font-weight:600;text-align:center;padding:.6rem;">⚠️ ไม่มี Slot ที่รองรับ ${duration} ชม. ต่อเนื่องในเวลาราชการ</div>`
+      : availableSlots.map(([s,e])=>{
+          const val=`${s}-${e}`;
+          const sel = form.slot===val;
+          const conf = isConflict(s,e);
+          const cb = conf ? conflictBk(s,e) : null;
+          const cls = conf?"conflict":(sel?"selected":"");
+          const lbl = conf?(ST[cb?.status]?.label||"จองแล้ว"):"";
+          return `<div style="display:inline-flex;flex-direction:column;align-items:center;gap:.18rem;">
+            <button class="slot-btn ${cls}" ${conf?"disabled":""}
+              onclick="selectSlot('${val}')"
+              title="${conf?`ถูกจองโดย ${cb?.name||""}`:""}">
+              ${conf?"🔴":"⏰"} ${s}–${e}
+            </button>
+            ${conf?`<span style="font-size:.65rem;color:#c62828;font-weight:600;text-align:center;max-width:90px;line-height:1.2;">${lbl}</span>`:""}
+          </div>`;
+        }).join("");
+
+    slotHtml = `<div class="slot-box" style="margin-top:1.1rem;">
+      <div style="font-size:.82rem;font-weight:700;color:${dark?"#7986cb":"#1a237e"};margin-bottom:.65rem;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;">
+        🕐 เลือกช่วงเวลา (Slot) <span style="color:#c62828;">*</span>
+        <span style="font-weight:400;font-size:.75rem;color:var(--text3);">— ${duration} ชม.${gs>1?` · ${gs} คนพร้อมกัน`:""}</span>
+      </div>
+      ${capNotice}
+      <div style="display:flex;flex-wrap:wrap;gap:.5rem;">${slotBtns}</div>
+      ${form.slot
+        ? `<div style="margin-top:.6rem;display:inline-flex;align-items:center;gap:.4rem;background:${dark?"#0a2410":"#e8f5e9"};border:1px solid #a5d6a7;border-radius:7px;padding:.3rem .75rem;font-size:.8rem;color:#2e7d32;font-weight:600;">
+            ✅ ${form.startTime} – ${form.endTime} · ${duration} ชม.${gs>1?` · ${gs} คนพร้อมกัน`:""}
+          </div>`
+        : `<div style="margin-top:.5rem;font-size:.76rem;color:var(--text3);">👆 คลิกเลือก Slot ที่ต้องการ · 🔴 = ถูกจองแล้ว</div>`}
+    </div>`;
+  }
+
+  // Free-time inputs (teacher / OT)
+  let freeTimeHtml = "";
+  if(isTeacher || form.isOT){
+    if(isTeacher){
+      // อาจารย์ — กรอกเวลาเริ่ม-สิ้นสุดได้อิสระ
+      const diff = (form.startTime&&form.endTime&&toMin(form.endTime)>toMin(form.startTime))
+        ? `<div style="margin-top:.5rem;font-size:.78rem;color:#2e7d32;font-weight:600;">⏱ รวม ${Math.round((toMin(form.endTime)-toMin(form.startTime))/60*10)/10} ชั่วโมง (${form.startTime} – ${form.endTime})</div>`
+        : (form.startTime&&form.endTime?`<div style="margin-top:.5rem;font-size:.78rem;color:#c62828;font-weight:600;">⚠️ เวลาสิ้นสุดต้องมากกว่าเวลาเริ่มต้น</div>`:"");
+      freeTimeHtml=`<div style="margin-top:1.1rem;">
+        <div class="fgrid">
+          <div class="fg">
+            <label class="flabel">เวลาเริ่มต้น <span>*</span></label>
+            <input type="time" class="finput" value="${form.startTime}" oninput="setFormField('startTime',this.value)">
+          </div>
+          <div class="fg">
+            <label class="flabel">เวลาสิ้นสุด <span>*</span></label>
+            <input type="time" class="finput" value="${form.endTime}" oninput="setFormField('endTime',this.value)">
           </div>
         </div>
-      );
-    }
+        ${diff}
+      </div>`;
+    } else {
+      // นิสิต OT — กรอกเฉพาะเวลาเริ่ม, endTime = startTime + duration จากวัตถุประสงค์
+      const otRule = form.purpose ? PURPOSE_RULES[form.purpose] : null;
+      const otDuration = otRule ? calcDuration(otRule.hrs, gs) : null;
+      const otEndTime = (form.startTime && otDuration)
+        ? MIN_TO_TIME(toMin(form.startTime) + otDuration * 60)
+        : "";
+      // sync endTime กับ state ถ้าเปลี่ยน
+      if(otEndTime && form.endTime !== otEndTime){ form.endTime = otEndTime; }
+      const diff = otEndTime
+        ? `<div style="margin-top:.5rem;display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;">
+            <span style="font-size:.78rem;color:#2e7d32;font-weight:600;">✅ ${form.startTime} → ${otEndTime} (${otDuration} ชม.)</span>
+            <span style="font-size:.72rem;background:${dark?"#1f1000":"#fff3e0"};color:#e65100;padding:2px 8px;border-radius:6px;border:1px solid #ff9800;">นอกเวลาราชการ — ช่วงเวลาใดก็ได้</span>
+          </div>`
+        : (!form.startTime && form.purpose
+            ? `<div style="margin-top:.5rem;font-size:.76rem;color:var(--text3);">👆 เลือกเวลาเริ่มต้น — ระบบจะคำนวณเวลาสิ้นสุดให้อัตโนมัติ</div>`
+            : !form.purpose
+            ? `<div style="margin-top:.5rem;font-size:.76rem;color:#c62828;font-weight:600;">⚠️ กรุณาเลือกวัตถุประสงค์ก่อน เพื่อให้ระบบคำนวณเวลาได้</div>`
+            : "");
 
-    // ── App ──────────────────────────────────────────────────────────────────
-    function App() {
-      const [dark,        setDark]        = useState(false);
-      const [session,     setSession]     = useState(null);
-      const [tab,         setTab]         = useState("booking");
-      const [bookings,    setBookings]    = useState(INIT_BOOKINGS);
-      const [form,        setForm]        = useState({name:"",date:"",startTime:"",endTime:"",room:"",purpose:"",groupSize:1,members:[],advisorName:"",advisorEmail:"",isOT:false,slot:""});
-      const [submitMsg,   setSubmitMsg]   = useState(null);
-      const [calDate,     setCalDate]     = useState(new Date(2026,2,1));
-      const [popup,       setPopup]       = useState(null);
-      const [filterRoom,  setFilterRoom]  = useState("all");
-      const [calFR,       setCalFR]       = useState("all");
-      const [adminPw,     setAdminPw]     = useState("");
-      const [adminAuth,   setAdminAuth]   = useState(false);
-      const [adminMsg,    setAdminMsg]    = useState(null);
-      const [cancelModal, setCancelModal] = useState(null);
-      const [toast,       setToast]       = useState(null);
-      const [webhookStatus, setWebhookStatus] = useState(null); // null | "sending" | "ok" | "err"
-      const [reports,     setReports]     = useState([
-        {id:1, room:"MA103", type:"projector", detail:"โปรเจคเตอร์เปิดไม่ติด", reporter:"สมชาย ใจดี", date:"2026-03-06", status:"open"},
-      ]);
-      const [reportForm,  setReportForm]  = useState({room:"",type:"",detail:"",reporter:""});
-      const [reportMsg,   setReportMsg]   = useState(null);
-      const [nowTime,     setNowTime]     = useState(()=>{ const n=new Date(); return `${String(n.getHours()).padStart(2,"0")}:${String(n.getMinutes()).padStart(2,"0")}`; });
-
-      const year = calDate.getFullYear(), month = calDate.getMonth();
-      const firstDay = new Date(year,month,1).getDay();
-      const daysInMonth = new Date(year,month+1,0).getDate();
-      const todayObj = new Date();
-
-      const bookingsByDate = useMemo(()=>{
-        const map={};
-        const src = calFR==="all" ? bookings : bookings.filter(b=>b.room===calFR);
-        src.forEach(b=>{if(!map[b.date])map[b.date]=[];map[b.date].push(b);});
-        return map;
-      },[bookings,calFR]);
-
-      const toggleDark = () => setDark(d=>!d);
-
-      if (!session) return (
-        <>
-          <style>{CSS}</style>
-          <LoginScreen onLogin={r=>{setSession(r);setTab("booking");}} dark={dark} toggleDark={toggleDark}/>
-        </>
-      );
-
-      const toMin = s => { const [h,m]=s.split(":").map(Number); return h*60+m; };
-
-      const getRule = (purpose, isOT) => (!isOT && PURPOSE_RULES[purpose]) ? PURPOSE_RULES[purpose] : null;
-
-      const setF = (k, v) => setForm(f => {
-        const u = { ...f, [k]: v };
-        if (k === "isOT") { u.slot = ""; u.startTime = ""; u.endTime = ""; if (!v) { u.advisorName = ""; u.advisorEmail = ""; } }
-        if (k === "purpose") { u.slot = ""; u.startTime = ""; u.endTime = ""; }
-        if (k === "slot" && v) { const [s, e] = v.split("-"); u.startTime = s; u.endTime = e; }
-        if (k === "groupSize") { u.members = f.members.slice(0, Math.max(0, (parseInt(v)||1) - 1)); }
-        return u;
-      });
-
-      const updateMember=(idx,key,val)=>setForm(f=>({...f,members:f.members.map((m,i)=>i===idx?{...m,[key]:val}:m)}));
-
-      const buildMailto=(bk)=>{
-        const sub=encodeURIComponent(`[ขออนุมัติจองห้องนอกเวลา] ${bk.room} วันที่ ${bk.date}`);
-        const body=encodeURIComponent(`เรียน อาจารย์ ${bk.advisorName}\n\nนิสิต ${bk.name} ขออนุมัติใช้ห้อง ${bk.room}\nวันที่: ${bk.date}\nเวลา: ${bk.startTime} – ${bk.endTime}\nวัตถุประสงค์: ${bk.purpose}\nจำนวน: ${bk.groupSize} คน\n\nกรุณาตอบกลับเพื่อ อนุมัติ หรือ ปฏิเสธ\nรหัสคำขอ: #${bk.id}\nระบบจองห้อง — ภาควิชาคณิตศาสตร์`);
-        return `mailto:${bk.advisorEmail}?subject=${sub}&body=${body}`;
-      };
-
-      const genCode = () => "BK-" + Math.random().toString(36).toUpperCase().slice(2,6);
-
-      // ── Webhook send helper ─────────────────────────────────────────────
-      const webhookSend = async (payload) => {
-        setWebhookStatus("sending");
-        try {
-          const res = await fetch(N8N_WEBHOOK_URL, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              ...payload,
-              submittedAt: new Date().toISOString(),
-              source: "room-booking-web",
-            }),
-          });
-          setWebhookStatus(res.ok ? "ok" : "err");
-          setTimeout(() => setWebhookStatus(null), 4000);
-        } catch (err) {
-          console.error("Webhook error:", err);
-          setWebhookStatus("err");
-          setTimeout(() => setWebhookStatus(null), 4000);
-        }
-      };
-
-      const handleSubmit=()=>{
-        if(!form.name||!form.date||!form.room||!form.purpose){setSubmitMsg({type:"err",text:"⚠️ กรุณากรอกข้อมูลให้ครบถ้วน"});return;}
-        if(!form.startTime||!form.endTime){setSubmitMsg({type:"err",text:"⚠️ กรุณาเลือกช่วงเวลา"});return;}
-        if(session==="นิสิต"&&!form.isOT){
-          const dow = new Date(form.date).getDay();
-          if(dow===0||dow===6){setSubmitMsg({type:"err",text:"⚠️ นิสิตจองได้เฉพาะวันจันทร์–ศุกร์"});return;}
-          const stMin=toMin(form.startTime), etMin=toMin(form.endTime);
-          if(stMin<480||etMin>1020){setSubmitMsg({type:"err",text:"⚠️ เวลาราชการ 08:00–17:00 น. เท่านั้น"});return;}
-        }
-        const gs=parseInt(form.groupSize)||1;
-        if(gs>1&&form.members.some(m=>!m.name)){setSubmitMsg({type:"err",text:"⚠️ กรุณากรอกชื่อสมาชิกให้ครบ"});return;}
-        if(form.isOT){
-          if(!form.advisorName.trim()){setSubmitMsg({type:"err",text:"⚠️ กรุณาระบุชื่ออาจารย์ผู้ดูแล"});return;}
-          if(!form.advisorEmail.includes("@")){setSubmitMsg({type:"err",text:"⚠️ กรุณาระบุ Email อาจารย์ให้ถูกต้อง"});return;}
-        }
-        const stNew = toMin(form.startTime);
-        const etNew = toMin(form.endTime);
-        const conflict = bookings.find(b =>
-          b.room === form.room && b.date === form.date && b.status !== "cancelled" &&
-          stNew < toMin(b.endTime) && etNew > toMin(b.startTime)
-        );
-        if(conflict){
-          const stLabel = ST[conflict.status]?.label || conflict.status;
-          setSubmitMsg({type:"err", text:`❌ ห้อง ${form.room} ช่วง ${conflict.startTime}–${conflict.endTime} มีการจองอยู่แล้ว (${stLabel})`});
-          return;
-        }
-        const roomMeta = ROOMS.find(r=>r.id===form.room);
-        const needsAdvisor = form.isOT || (session==="นิสิต" && roomMeta?.needsApproval);
-        if(needsAdvisor && !form.advisorName.trim()){setSubmitMsg({type:"err",text:`⚠️ ห้อง ${form.room} ต้องมีอาจารย์ Approve — กรุณาระบุชื่อ+Email อาจารย์`});return;}
-
-        const code = genCode();
-        const bk={
-          id: Date.now(), code, ...form, groupSize: gs,
-          role: session,
-          status: needsAdvisor ? "awaiting_advisor" : "pending",
-          isOT: form.isOT,
-          memberNames: form.members.map(m=>m.name).join(", "),
-          memberIds: form.members.map(m=>m.studentId||"").join(", "),
-        };
-
-        setBookings(b=>[bk,...b]);
-        setForm({name:"",date:"",startTime:"",endTime:"",room:"",purpose:"",groupSize:1,members:[],advisorName:"",advisorEmail:"",isOT:false,slot:""});
-        setSubmitMsg(null);
-
-        // ── ส่งข้อมูลไปยัง n8n → Google Sheets ──────────────────────────
-        webhookSend({
-          action:       "new_booking",
-          bookingCode:  code,
-          name:         bk.name,
-          role:         bk.role,
-          room:         bk.room,
-          date:         bk.date,
-          startTime:    bk.startTime,
-          endTime:      bk.endTime,
-          purpose:      bk.purpose,
-          groupSize:    gs,
-          memberNames:  bk.memberNames,
-          memberIds:    bk.memberIds,
-          advisorName:  bk.advisorName || "",
-          advisorEmail: bk.advisorEmail || "",
-          isOT:         bk.isOT,
-          status:       bk.status,
-          needsAdvisor: needsAdvisor,
-        });
-
-        if(needsAdvisor) setTimeout(()=>window.open(buildMailto(bk),"_blank"),300);
-        setToast({isOT:needsAdvisor, room:bk.room, date:bk.date, startTime:bk.startTime, endTime:bk.endTime, gs, name:bk.name, code});
-        setTimeout(()=>setToast(null), 10000);
-      };
-
-      const calCells=[];
-      for(let i=0;i<firstDay;i++) calCells.push(null);
-      for(let d=1;d<=daysInMonth;d++) calCells.push(d);
-
-      const filtered=filterRoom==="all"?bookings:bookings.filter(b=>b.room===filterRoom);
-      const ROOM_COLORS={"MA103":"#1565c0","MA105":"#00838f","MA106":"#e65100","MA107":"#4a148c","MA208":"#2e7d32"};
-
-      const navItems=[
-        {key:"booking",  icon:"📝", label:"จองห้อง"},
-        {key:"status",   icon:"🟢", label:"สถานะห้อง"},
-        {key:"list",     icon:"📋", label:"รายการจอง"},
-        {key:"calendar", icon:"📅", label:"ปฏิทิน"},
-        {key:"report",   icon:"🔧", label:"แจ้งปัญหา"},
-        ...(session==="อาจารย์"?[{key:"admin",icon:"🔐",label:"เจ้าหน้าที่"}]:[]),
-      ];
-
-      const stBadgeStyle=(s)=>({background:dark?ST[s]?.dbg:ST[s]?.bg, color:dark?ST[s]?.dtext:ST[s]?.text});
-
-      const confirmCancel = () => {
-        const {booking, codeInput} = cancelModal;
-        if (codeInput.trim().toUpperCase() !== (booking.code||"").toUpperCase()) {
-          setCancelModal(m=>({...m, err:"❌ รหัสการจองไม่ถูกต้อง"}));
-          return;
-        }
-        setBookings(bs => bs.map(b => b.id===booking.id ? {...b, status:"cancelled"} : b));
-
-        // ── แจ้ง n8n ว่ายกเลิกการจอง ──────────────────────────────────
-        webhookSend({
-          action:      "cancel_booking",
-          bookingCode: booking.code,
-          name:        booking.name,
-          role:        booking.role,
-          room:        booking.room,
-          date:        booking.date,
-          startTime:   booking.startTime,
-          endTime:     booking.endTime,
-          purpose:     booking.purpose,
-          status:      "cancelled",
-          cancelledAt: new Date().toISOString(),
-        });
-
-        setCancelModal(null);
-      };
-
-      const D = dark ? " dark" : "";
-
-      return (
-        <>
-          <style>{CSS}</style>
-          <div className={`app-wrap${D}`}>
-
-            {/* Header */}
-            <header className="hdr">
-              <div className="hdr-inner">
-                <div className="hdr-brand">
-                  <div className="hdr-logo">🏛️</div>
-                  <div>
-                    <div className="hdr-title">ระบบจองห้องออนไลน์</div>
-                    <div className="hdr-sub">Department of Mathematics · Faculty of Science</div>
-                  </div>
-                </div>
-                <div className="hdr-right">
-                  <nav style={{display:"flex",gap:".2rem",flexWrap:"wrap"}}>
-                    {navItems.map(n=><button key={n.key} className={`nav-btn${tab===n.key?" active":""}`} onClick={()=>setTab(n.key)}>{n.icon} {n.label}</button>)}
-                  </nav>
-                  {/* Webhook status indicator */}
-                  {webhookStatus && (
-                    <span className={`wh-badge wh-${webhookStatus}`}>
-                      {webhookStatus==="sending"?"⏳ กำลังบันทึก…":webhookStatus==="ok"?"✅ บันทึกแล้ว":"❌ บันทึกล้มเหลว"}
-                    </span>
-                  )}
-                  <button className="dm-btn" onClick={toggleDark}>{dark?"☀️ Light":"🌙 Dark"}</button>
-                  <div className="chip">{session==="นิสิต"?"🎓":"👨‍🏫"} {session}</div>
-                  <button className="btn-out" onClick={()=>{setSession(null);setAdminAuth(false);setAdminPw("");}}>ออกจากระบบ</button>
-                </div>
-              </div>
-            </header>
-
-            <main className="main">
-              <div className="tabs">{navItems.map(n=><button key={n.key} className={`tab${tab===n.key?" active":""}`} onClick={()=>setTab(n.key)}>{n.icon} {n.label}</button>)}</div>
-
-              {/* ══ BOOKING ══ */}
-              {tab==="booking"&&(()=>{
-                const isTeacher = session === "อาจารย์";
-                const rule = (!isTeacher && !form.isOT && PURPOSE_RULES[form.purpose]) ? PURPOSE_RULES[form.purpose] : null;
-                const showSlots = !!rule;
-                const showFreeTime = isTeacher || form.isOT || (!rule && !!form.purpose);
-                return(
-                <div>
-                  <div className="sec-hdr"><div className="sec-icon">📝</div><h2>แบบฟอร์มจองห้อง</h2></div>
-                  <div className="divider"/>
-                  <div className="rules-box">
-                    <div className="rules-ttl">📋 กฎระเบียบการจองห้อง (ตามตารางภาควิชา)</div>
-                    <div style={{overflowX:"auto",marginBottom:".5rem"}}>
-                      <table style={{width:"100%",borderCollapse:"collapse",fontSize:".78rem",fontFamily:"Sarabun,sans-serif"}}>
-                        <thead>
-                          <tr style={{background:"#1a237e",color:"white"}}>
-                            <th style={{padding:".35rem .6rem",textAlign:"left",borderRadius:"6px 0 0 0",fontWeight:700}}>ห้อง</th>
-                            <th style={{padding:".35rem .6rem",textAlign:"left",fontWeight:700}}>ผู้มีสิทธิ์</th>
-                            <th style={{padding:".35rem .6rem",textAlign:"left",fontWeight:700}}>ช่วงเวลา</th>
-                            <th style={{padding:".35rem .6rem",textAlign:"left",borderRadius:"0 6px 0 0",fontWeight:700}}>จำนวนชั่วโมง / Slot</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {[
-                            {room:"MA103 / MA105", who:"นิสิต", time:"จ.–ศ. 08:00–17:00",
-                             detail:[
-                               {t:"ซ้อม (สัมมนา/โครงงาน)",d:"1 ชม. — ทุก slot"},
-                               {t:"สอบ / ทำงานกลุ่ม / อ่านหนังสือ",d:"2 ชม. — 08-10, 10-12, 13-15, 15-17",red:true},
-                             ]},
-                            {room:"MA106 / MA107 / MA208 🔐", who:"นิสิต (ต้อง Approve)", time:"ทุกเวลา",
-                             detail:[{t:"ทุกวัตถุประสงค์",d:"ต้องระบุอาจารย์ผู้ดูแล"}]},
-                            {room:"MA103–MA208", who:"อาจารย์ / เจ้าหน้าที่", time:"ทุกเวลา",
-                             detail:[{t:"ทุกวัตถุประสงค์",d:"ไม่จำกัดชั่วโมง"}]},
-                          ].map((row,ri)=>(
-                            <tr key={ri} style={{background:ri%2===0?(dark?"#1a1d27":"#fafafa"):(dark?"#13151f":"white"),borderBottom:`1px solid ${dark?"#252836":"#e8e4db"}`}}>
-                              <td style={{padding:".4rem .6rem",fontWeight:700,color:dark?"#7986cb":"#1a237e",verticalAlign:"top"}}>{row.room}</td>
-                              <td style={{padding:".4rem .6rem",verticalAlign:"top",color:"var(--text2)"}}>{row.who}</td>
-                              <td style={{padding:".4rem .6rem",verticalAlign:"top",color:"var(--text2)",whiteSpace:"nowrap"}}>{row.time}</td>
-                              <td style={{padding:".4rem .6rem",verticalAlign:"top"}}>
-                                {row.detail.map((d,di)=>(
-                                  <div key={di} style={{marginBottom:di<row.detail.length-1?".25rem":0}}>
-                                    <span style={{color:d.red?(dark?"#f48fb1":"#c62828"):"var(--text)",fontWeight:600}}>{d.t}: </span>
-                                    <span style={{color:"var(--text3)"}}>{d.d}</span>
-                                  </div>
-                                ))}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                    <div style={{fontSize:".74rem",color:dark?"#555b7a":"#888",marginTop:".3rem"}}>🌙 นิสิตที่ต้องการจองนอกเวลา: ติ๊ก Checkbox "จองนอกเวลาราชการ" และระบุอาจารย์ผู้ดูแล</div>
-                  </div>
-
-                  <div className="card">
-                    {submitMsg&&<div className={`alert a-${submitMsg.type==="ok"?"ok":"err"} sli`}>{submitMsg.text}</div>}
-                    <div className={`badge-role${session==="นิสิต"?" student":""}`}>{session==="นิสิต"?"🎓 กำลังจองในฐานะ นิสิต":"👨‍🏫 กำลังจองในฐานะ อาจารย์"}</div>
-
-                    {/* OT Checkbox */}
-                    {session==="นิสิต"&&(
-                    <div style={{marginBottom:"1.25rem"}}>
-                      <label style={{display:"flex",alignItems:"center",gap:".65rem",cursor:"pointer",userSelect:"none",
-                        padding:".75rem 1rem",borderRadius:"10px",
-                        border:`2px solid ${form.isOT?"#ff6f00":(dark?"#2e3248":"#ddd")}`,
-                        background:form.isOT?(dark?"#1f1000":"#fff8f0"):(dark?"#1a1d27":"#fafafa"),
-                        transition:"all .2s"}}>
-                        <input type="checkbox" checked={form.isOT} onChange={e=>setF("isOT",e.target.checked)}
-                          style={{width:18,height:18,accentColor:"#e65100",cursor:"pointer",flexShrink:0}}/>
-                        <div>
-                          <div style={{fontWeight:700,fontSize:".92rem",color:form.isOT?"#e65100":(dark?"#e8eaf6":"#333")}}>🌙 จองนอกเวลาราชการ</div>
-                          <div style={{fontSize:".75rem",color:form.isOT?"#bf360c":(dark?"#555b7a":"#999"),marginTop:".1rem"}}>
-                            {form.isOT?"✅ โหมดนอกเวลา — กรอกเวลาเองได้อิสระ":"ไม่ติ๊ก = ใช้เวลาราชการ 08:00–17:00 มี Slot สำเร็จรูปให้เลือก"}
-                          </div>
-                        </div>
-                        <div style={{marginLeft:"auto",padding:".2rem .6rem",borderRadius:"6px",fontSize:".72rem",fontWeight:700,
-                          background:form.isOT?"#e65100":"#2e7d32",color:"white",flexShrink:0}}>
-                          {form.isOT?"OT":"ปกติ"}
-                        </div>
-                      </label>
-                    </div>
-                    )}
-
-                    {/* Group selector */}
-                    {session==="นิสิต"&&(
-                    <div className="group-box">
-                      <div className="group-title">👥 จำนวนผู้ใช้ห้อง</div>
-                      <div className="grp-counter">
-                        <button className="gc-btn" disabled={form.groupSize<=1} onClick={()=>setF("groupSize",Math.max(1,form.groupSize-1))}>−</button>
-                        <span className="gc-num">{form.groupSize}</span>
-                        <button className="gc-btn" disabled={form.groupSize>=4} onClick={()=>setF("groupSize",form.groupSize+1)}>+</button>
-                        <span className="gc-info">{form.groupSize===1?"👤 จองคนเดียว":`👥 จองกลุ่ม ${form.groupSize} คน`}</span>
-                      </div>
-                      {form.groupSize>1&&(
-                        <div className="member-list">
-                          <div style={{fontSize:".78rem",fontWeight:600,color:"var(--text2)",marginTop:".2rem"}}>📋 รายชื่อสมาชิก</div>
-                          {Array.from({length:form.groupSize-1}).map((_,idx)=>(
-                            <div key={idx} className="member-row">
-                              <span className="member-idx">คนที่ {idx+2}</span>
-                              <input className="finput" style={{padding:".4rem .65rem",fontSize:".82rem"}} placeholder="ชื่อ-สกุล" value={form.members[idx]?.name||""} onChange={e=>updateMember(idx,"name",e.target.value)}/>
-                              <input className="finput" style={{padding:".4rem .65rem",fontSize:".82rem"}} placeholder="รหัสนิสิต" value={form.members[idx]?.studentId||""} onChange={e=>updateMember(idx,"studentId",e.target.value)}/>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                    )}
-
-                    <div className="fgrid">
-                      <div className="fg wide">
-                        <label className="flabel">ชื่อ-สกุล ผู้จอง <span>*</span></label>
-                        <input className="finput" placeholder="กรอกชื่อ-นามสกุล" value={form.name} onChange={e=>setF("name",e.target.value)}/>
-                      </div>
-                      <div className="fg">
-                        <label className="flabel">วันที่ <span>*</span></label>
-                        <input type="date" className="finput" value={form.date} onChange={e=>setF("date",e.target.value)}
-                          style={session==="นิสิต"&&!form.isOT&&form.date&&[0,6].includes(new Date(form.date).getDay())?{borderColor:"#c62828"}:{}}/>
-                        {session==="นิสิต"&&!form.isOT&&form.date&&(()=>{
-                          const dow=new Date(form.date).getDay();
-                          const dayName=["อาทิตย์","จันทร์","อังคาร","พุธ","พฤหัสบดี","ศุกร์","เสาร์"][dow];
-                          if(dow===0||dow===6) return <div style={{fontSize:".76rem",color:"#c62828",marginTop:".25rem",fontWeight:600}}>❌ วัน{dayName} — จองได้เฉพาะ จ.–ศ.</div>;
-                          return <div style={{fontSize:".76rem",color:"#2e7d32",marginTop:".25rem"}}>✅ วัน{dayName}</div>;
-                        })()}
-                        {session==="นิสิต"&&!form.isOT&&<div className="rnote">นิสิตจองได้เฉพาะวันจันทร์–ศุกร์</div>}
-                      </div>
-                      <div className="fg">
-                        <label className="flabel">ห้องที่ขอใช้ <span>*</span></label>
-                        <select className="fselect" value={form.room} onChange={e=>setF("room",e.target.value)}>
-                          <option value="">-- เลือกห้อง --</option>
-                          <optgroup label="📚 ห้องทั่วไป (นิสิตจองได้ตามปกติ)">
-                            {ROOMS.filter(r=>!r.needsApproval).map(r=><option key={r.id} value={r.id}>{r.icon} {r.name}</option>)}
-                          </optgroup>
-                          <optgroup label="🔐 ห้องพิเศษ (ต้องมีอาจารย์ Approve ก่อน)">
-                            {ROOMS.filter(r=>r.needsApproval).map(r=><option key={r.id} value={r.id}>{r.icon} {r.name} — ต้อง Approve</option>)}
-                          </optgroup>
-                        </select>
-                        {form.room&&(()=>{const r=ROOMS.find(x=>x.id===form.room);return r?<div className="rnote" style={r.needsApproval?{color:"#6a1b9a"}:{}}>{r.note}</div>:null;})()}
-                      </div>
-                      <div className="fg wide">
-                        <label className="flabel">วัตถุประสงค์ <span>*</span></label>
-                        <select className="fselect" value={form.purpose} onChange={e=>setF("purpose",e.target.value)}>
-                          <option value="">-- เลือกวัตถุประสงค์ --</option>
-                          {!form.isOT
-                            ? <optgroup label="⏰ ในเวลาราชการ">
-                                {["ซ้อมสัมมนา","ซ้อมโครงงาน/โปรเจค","สอบสัมมนา","สอบโครงงาน/โปรเจค","ทำงานกลุ่ม","อ่านหนังสือ","ประชุม","อื่น ๆ"].map(p=><option key={p} value={p}>{p}{PURPOSE_RULES[p]?" ("+PURPOSE_RULES[p].hrs+"ชม.)":""}</option>)}
-                              </optgroup>
-                            : <optgroup label="🌙 นอกเวลาราชการ">
-                                {["ซ้อมสัมมนา","ซ้อมโครงงาน/โปรเจค","สอบสัมมนา","สอบโครงงาน/โปรเจค","ทำงานกลุ่ม","อ่านหนังสือ","ประชุม","อื่น ๆ"].map(p=><option key={p} value={p}>{p}</option>)}
-                              </optgroup>
-                          }
-                        </select>
-                        {rule&&!form.isOT&&<div className="rnote">⏱ จำกัด <strong>{rule.hrs} ชม.</strong> — เลือก Slot ด้านล่าง</div>}
-                      </div>
-                    </div>
-
-                    {/* Slot Picker */}
-                    {showSlots&&(()=>{
-                      const bookedSlots = form.room && form.date
-                        ? bookings.filter(b=>b.room===form.room && b.date===form.date && b.status!=="cancelled")
-                        : [];
-                      const isSlotConflict = (s, e) => bookedSlots.some(b => toMin(s) < toMin(b.endTime) && toMin(e) > toMin(b.startTime));
-                      const conflictBooking = (s, e) => bookedSlots.find(b => toMin(s) < toMin(b.endTime) && toMin(e) > toMin(b.startTime));
-                      return(
-                      <div style={{marginTop:"1.1rem",padding:"1rem 1.1rem",background:dark?"#13151f":"#f8f9ff",border:`1.5px solid ${dark?"#2e3248":"#c5cae9"}`,borderRadius:"10px"}}>
-                        <div style={{fontSize:".82rem",fontWeight:700,color:dark?"#7986cb":"#1a237e",marginBottom:".65rem"}}>
-                          🕐 เลือกช่วงเวลา (Slot) <span style={{color:"#c62828"}}>*</span>
-                          <span style={{fontWeight:400,fontSize:".75rem",color:"var(--text3)"}}> — จำกัด {rule.hrs} ชม. ต่อครั้ง</span>
-                        </div>
-                        <div style={{display:"flex",flexWrap:"wrap",gap:".5rem"}}>
-                          {rule.slots.map(([s,e])=>{
-                            const val=`${s}-${e}`;
-                            const sel=form.slot===val;
-                            const conflict=isSlotConflict(s,e);
-                            const cb=conflictBooking(s,e);
-                            return(
-                              <div key={val} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:".18rem"}}>
-                                <button type="button"
-                                  disabled={conflict}
-                                  onClick={()=>!conflict&&setF("slot", sel ? "" : val)}
-                                  title={conflict?`ถูกจองโดย ${cb?.name}`:""}
-                                  style={{
-                                    padding:".52rem 1rem",borderRadius:"9px",
-                                    border:`2px solid ${conflict?"#ef9a9a":sel?"#1a237e":(dark?"#2e3248":"#c5cae9")}`,
-                                    background:conflict?(dark?"#2a0a10":"#fce4ec"):sel?"#1a237e":(dark?"#1a1d27":"white"),
-                                    color:conflict?"#c62828":sel?"white":(dark?"#9da3c4":"#555"),
-                                    fontFamily:"Sarabun,sans-serif",fontSize:".86rem",fontWeight:sel?700:500,
-                                    cursor:conflict?"not-allowed":"pointer",transition:"all .15s",
-                                    boxShadow:sel?"0 3px 12px rgba(26,35,126,.3)":"none",opacity:conflict?0.7:1,
-                                  }}>
-                                  {conflict?"🔴":"⏰"} {s}–{e}
-                                </button>
-                                {conflict&&<span style={{fontSize:".65rem",color:"#c62828",fontWeight:600,textAlign:"center",maxWidth:90,lineHeight:1.2}}>
-                                  {ST[cb?.status]?.label||"จองแล้ว"}
-                                </span>}
-                              </div>
-                            );
-                          })}
-                        </div>
-                        {form.slot
-                          ? <div style={{marginTop:".6rem",display:"inline-flex",alignItems:"center",gap:".4rem",
-                              background:dark?"#0a2410":"#e8f5e9",border:"1px solid #a5d6a7",borderRadius:"7px",
-                              padding:".3rem .75rem",fontSize:".8rem",color:"#2e7d32",fontWeight:600}}>
-                              ✅ เลือกแล้ว: {form.startTime} – {form.endTime} ({rule.hrs} ชม.)
-                            </div>
-                          : <div style={{marginTop:".5rem",fontSize:".76rem",color:"var(--text3)"}}>👆 คลิกเลือก Slot · 🔴 = ถูกจองแล้ว</div>
-                        }
-                      </div>
-                      );
-                    })()}
-
-                    {/* Free time input */}
-                    {showFreeTime&&(
-                      <div style={{marginTop:"1.1rem"}}>
-                        {form.isOT&&<div style={{fontSize:".78rem",color:"#e65100",fontWeight:600,marginBottom:".5rem"}}>🌙 โหมดนอกเวลา — กรอกเวลาได้อิสระ</div>}
-                        <div className="fgrid">
-                          <div className="fg">
-                            <label className="flabel">เวลาเริ่มต้น <span>*</span></label>
-                            <input type="time" className="finput" value={form.startTime} onChange={e=>setF("startTime",e.target.value)}/>
-                          </div>
-                          <div className="fg">
-                            <label className="flabel">เวลาสิ้นสุด <span>*</span></label>
-                            <input type="time" className="finput" value={form.endTime} onChange={e=>setF("endTime",e.target.value)}/>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Advisor fields */}
-                    {(()=>{
-                      const roomMeta = ROOMS.find(r=>r.id===form.room);
-                      const needsAdvisor = form.isOT || (session==="นิสิต" && roomMeta?.needsApproval);
-                      if(!needsAdvisor) return null;
-                      const isRoomRestricted = session==="นิสิต" && roomMeta?.needsApproval && !form.isOT;
-                      return(
-                      <div className="ot-box" style={{marginTop:"1.1rem",borderColor:isRoomRestricted?"#4a148c":"#ff6f00",background:isRoomRestricted?(dark?"#1a0a2e":"#f3e5f5"):(dark?"#1f1000":"#fff8f0")}}>
-                        <div className="ot-title" style={{color:isRoomRestricted?"#6a1b9a":"#e65100"}}>
-                          {isRoomRestricted?"🔐 ห้องนี้ต้องมีอาจารย์ Approve ก่อนใช้งาน":"👨‍🏫 ข้อมูลอาจารย์ผู้ดูแล"}
-                        </div>
-                        <div className="ot-desc" style={{color:isRoomRestricted?(dark?"#ce93d8":"#6a1b9a"):""}}>
-                          {isRoomRestricted?`ห้อง ${form.room} — ระบบจะส่ง Email ขออนุมัติให้อาจารย์อัตโนมัติ`:"นอกเวลาราชการ — ระบบจะส่ง Email ขออนุมัติให้อาจารย์อัตโนมัติ"}
-                        </div>
-                        <div className="fgrid">
-                          <div className="fg">
-                            <label className="flabel">ชื่ออาจารย์ผู้ดูแล <span>*</span></label>
-                            <input className="finput" placeholder="ผศ.ดร.ชื่อ นามสกุล" value={form.advisorName} onChange={e=>setF("advisorName",e.target.value)}/>
-                          </div>
-                          <div className="fg">
-                            <label className="flabel">Email อาจารย์ <span>*</span></label>
-                            <input type="email" className="finput" placeholder="lecturer@sci.university.ac.th" value={form.advisorEmail} onChange={e=>setF("advisorEmail",e.target.value)}/>
-                          </div>
-                        </div>
-                        <div style={{marginTop:".6rem",fontSize:".75rem",color:isRoomRestricted?(dark?"#ce93d8":"#6a1b9a"):(dark?"#ff8a50":"#bf360c")}}>
-                          📧 กดยืนยันจะเปิด Email Client พร้อมข้อความขออนุมัติอัตโนมัติ
-                        </div>
-                      </div>
-                      );
-                    })()}
-
-                    <div style={{marginTop:"1.4rem",display:"flex",justifyContent:"flex-end",alignItems:"center",gap:"1rem",flexWrap:"wrap"}}>
-                      {form.startTime&&form.endTime&&(
-                        <span style={{fontSize:".82rem",fontWeight:600,padding:".3rem .85rem",borderRadius:"8px",
-                          color:form.isOT?"#e65100":(dark?"#7986cb":"#1a237e"),
-                          background:form.isOT?(dark?"#1f1000":"#fff3e0"):(dark?"#1a1f35":"#e8eaf6")}}>
-                          ⏰ {form.startTime} – {form.endTime}
-                          {form.groupSize>1&&` · 👥 ${form.groupSize} คน`}
-                        </span>
-                      )}
-                      <button className="btn-p" onClick={handleSubmit}
-                        style={(()=>{const rm=ROOMS.find(r=>r.id===form.room);const isR=form.isOT||(session==="นิสิต"&&rm?.needsApproval);return isR?{background:"linear-gradient(135deg,#6a1b9a,#9c27b0)"}:{};})()}>
-                        {(()=>{const rm=ROOMS.find(r=>r.id===form.room);if(form.isOT)return "📧 ส่งคำขอ & เปิด Email อาจารย์";if(session==="นิสิต"&&rm?.needsApproval)return "📧 ส่งคำขอ Approve & เปิด Email อาจารย์";return "✅ ยืนยันการจองห้อง";})()}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              );})()}
-
-              {/* ══ ROOM STATUS ══ */}
-              {tab==="status"&&(()=>{
-                const todayStr = `${todayObj.getFullYear()}-${String(todayObj.getMonth()+1).padStart(2,"0")}-${String(todayObj.getDate()).padStart(2,"0")}`;
-                const toMin2 = s=>{ if(!s)return 0; const [h,m]=s.split(":").map(Number); return h*60+m; };
-                const nowMin = toMin2(nowTime);
-                const todayBks = bookings.filter(b=>b.date===todayStr && ["approved","pending"].includes(b.status));
-                const isRoomBusy = (roomId)=> todayBks.some(b=>b.room===roomId && toMin2(b.startTime)<=nowMin && nowMin<toMin2(b.endTime));
-                const getNextSlot = (roomId)=>{
-                  const upcoming = todayBks.filter(b=>b.room===roomId && toMin2(b.startTime)>nowMin).sort((a,b2)=>toMin2(a.startTime)-toMin2(b2.startTime));
-                  return upcoming[0]||null;
-                };
-                const getCurrentBooking = (roomId)=> todayBks.find(b=>b.room===roomId && toMin2(b.startTime)<=nowMin && nowMin<toMin2(b.endTime));
-                const openReports = reports.filter(r=>r.status==="open");
-                return(
-                <div>
-                  <div className="sec-hdr"><div className="sec-icon">🟢</div><h2>สถานะห้องแบบ Real-time</h2></div>
-                  <div className="divider"/>
-                  <div style={{display:"flex",alignItems:"center",gap:".75rem",marginBottom:"1.25rem",flexWrap:"wrap"}}>
-                    <div style={{fontSize:".82rem",color:"var(--text2)"}}>📅 วันนี้ {todayStr} &nbsp;·&nbsp; ⏰ {nowTime} น.</div>
-                    <button onClick={()=>{const n=new Date();setNowTime(`${String(n.getHours()).padStart(2,"0")}:${String(n.getMinutes()).padStart(2,"0")}`);}}
-                      style={{fontSize:".75rem",padding:".25rem .65rem",borderRadius:"6px",border:`1px solid ${dark?"#2e3248":"#ddd"}`,background:"var(--bg-card)",color:"var(--text2)",cursor:"pointer"}}>
-                      🔄 รีเฟรช
-                    </button>
-                  </div>
-                  <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(300px,1fr))",gap:"1rem"}}>
-                    {ROOMS.map(room=>{
-                      const busy = isRoomBusy(room.id);
-                      const cur = getCurrentBooking(room.id);
-                      const next = getNextSlot(room.id);
-                      const hasIssue = openReports.some(r=>r.room===room.id);
-                      const todaySlots = todayBks.filter(b=>b.room===room.id).sort((a,b2)=>toMin2(a.startTime)-toMin2(b2.startTime));
-                      return(
-                      <div key={room.id} className="card" style={{padding:0,overflow:"hidden",border:`2px solid ${hasIssue?"#ff9800":busy?"#f44336":"#4caf50"}`}}>
-                        <div style={{padding:"1rem 1.2rem .75rem",background:busy?(dark?"#2a0a10":"#fce4ec"):(dark?"#0a2410":"#e8f5e9"),borderBottom:`1px solid ${dark?"#252836":"#e0e0e0"}`}}>
-                          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-                            <div style={{display:"flex",alignItems:"center",gap:".6rem"}}>
-                              <span style={{fontSize:"1.5rem"}}>{room.icon}</span>
-                              <div>
-                                <div style={{fontFamily:"Noto Serif Thai,serif",fontWeight:700,fontSize:"1rem",color:dark?"#e8eaf6":"#1a237e"}}>{room.name}</div>
-                                <div style={{fontSize:".72rem",color:"var(--text3)",marginTop:"1px"}}>{room.needsApproval?"🔐 ต้อง Approve":"นิสิต + อาจารย์"}</div>
-                              </div>
-                            </div>
-                            <div style={{display:"inline-flex",alignItems:"center",gap:".35rem",padding:".3rem .75rem",borderRadius:"20px",fontWeight:700,fontSize:".8rem",background:busy?"#f44336":"#4caf50",color:"white"}}>
-                              {busy?"🔴 ไม่ว่าง":"🟢 ว่าง"}
-                            </div>
-                          </div>
-                        </div>
-                        <div style={{padding:".85rem 1.2rem"}}>
-                          {busy&&cur&&(
-                            <div style={{background:dark?"#2a0a10":"#fce4ec",border:"1px solid #ef9a9a",borderRadius:"8px",padding:".6rem .85rem",marginBottom:".65rem"}}>
-                              <div style={{fontSize:".76rem",fontWeight:700,color:"#c62828",marginBottom:".2rem"}}>🔴 กำลังใช้งาน</div>
-                              <div style={{fontSize:".82rem",fontWeight:600,color:"var(--text)"}}>{cur.name}</div>
-                              <div style={{fontSize:".75rem",color:"var(--text3)"}}>{cur.startTime}–{cur.endTime} · {cur.purpose}</div>
-                            </div>
-                          )}
-                          {!busy&&(
-                            <div style={{background:dark?"#0a2410":"#e8f5e9",border:"1px solid #a5d6a7",borderRadius:"8px",padding:".6rem .85rem",marginBottom:".65rem"}}>
-                              <div style={{fontSize:".76rem",fontWeight:700,color:"#2e7d32",marginBottom:".1rem"}}>🟢 ว่างอยู่ในขณะนี้</div>
-                              {next?<div style={{fontSize:".75rem",color:"var(--text3)"}}>จะถูกจองเวลา {next.startTime}–{next.endTime}</div>
-                                   :<div style={{fontSize:".75rem",color:"var(--text3)"}}>ไม่มีการจองที่เหลือในวันนี้</div>}
-                            </div>
-                          )}
-                          <div style={{fontSize:".75rem",fontWeight:700,color:"var(--text2)",marginBottom:".4rem"}}>📅 ตารางวันนี้</div>
-                          {todaySlots.length===0?<div style={{fontSize:".78rem",color:"var(--text3)",fontStyle:"italic"}}>ไม่มีการจองในวันนี้</div>
-                            :<div style={{display:"flex",flexDirection:"column",gap:".3rem"}}>
-                              {todaySlots.map(b=>{
-                                const isCur=toMin2(b.startTime)<=nowMin&&nowMin<toMin2(b.endTime);
-                                return(<div key={b.id} style={{display:"flex",alignItems:"center",gap:".5rem",padding:".3rem .6rem",borderRadius:"6px",
-                                  background:isCur?(dark?"#2a0a10":"#fce4ec"):(dark?"#1a1d27":"#f5f5f5"),border:`1px solid ${isCur?"#ef9a9a":(dark?"#252836":"#e0e0e0")}`}}>
-                                  <span style={{fontSize:".65rem",fontFamily:"monospace",color:isCur?"#c62828":"var(--text3)",whiteSpace:"nowrap",fontWeight:isCur?700:400}}>{b.startTime}–{b.endTime}</span>
-                                  <span style={{fontSize:".75rem",color:"var(--text)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1}}>{b.name}</span>
-                                  {isCur&&<span style={{fontSize:".68rem",color:"#c62828",fontWeight:700}}>ใช้งาน</span>}
-                                </div>);
-                              })}
-                            </div>
-                          }
-                          <button onClick={()=>{setTab("booking");setForm(f=>({...f,room:room.id}));}}
-                            style={{marginTop:".75rem",width:"100%",padding:".48rem",borderRadius:"7px",border:`1px solid ${dark?"#2e3248":"#c5cae9"}`,
-                              background:dark?"#1a1f35":"#e8eaf6",color:dark?"#7986cb":"#1a237e",
-                              fontFamily:"Sarabun,sans-serif",fontSize:".8rem",fontWeight:600,cursor:"pointer"}}>
-                            📝 จองห้องนี้
-                          </button>
-                        </div>
-                      </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              );})()}
-
-              {/* ══ LIST ══ */}
-              {tab==="list"&&(
-                <div>
-                  <div className="sec-hdr"><div className="sec-icon">📋</div><h2>รายการจองทั้งหมด</h2></div>
-                  <div className="divider"/>
-                  <div className="fbar">
-                    <select className="fsel" value={filterRoom} onChange={e=>setFilterRoom(e.target.value)}>
-                      <option value="all">🏠 ทุกห้อง</option>
-                      {ROOMS.map(r=><option key={r.id} value={r.id}>{r.name}</option>)}
-                    </select>
-                    <span style={{fontSize:".82rem",color:"var(--text3)"}}>พบ {filtered.length} รายการ</span>
-                  </div>
-                  <div className="card" style={{padding:0,overflow:"hidden"}}>
-                    <div style={{overflowX:"auto"}}>
-                      <table className="tbl">
-                        <thead><tr>
-                          <th>#</th><th>ชื่อ-สกุล</th><th>สถานะ</th><th>ห้อง</th>
-                          <th>วันที่</th><th>เวลา</th><th>กลุ่ม</th><th>รหัสจอง</th>
-                          <th>วัตถุประสงค์</th><th>การจอง</th>
-                          {session==="นิสิต"&&<th>ยกเลิก</th>}
-                        </tr></thead>
-                        <tbody>
-                          {filtered.map((b,i)=>{
-                            const canCancel = session==="นิสิต" && b.role==="นิสิต" && b.status!=="cancelled";
-                            return(
-                            <tr key={b.id}>
-                              <td style={{color:"var(--text4)"}}>{i+1}</td>
-                              <td style={{fontWeight:600}}>
-                                {b.name}
-                                {session==="นิสิต"&&b.role==="นิสิต"&&<span style={{marginLeft:".4rem",fontSize:".68rem",background:dark?"#1a1f35":"#e8eaf6",color:dark?"#7986cb":"#1a237e",borderRadius:"10px",padding:"1px 6px",fontWeight:700}}>ฉัน</span>}
-                              </td>
-                              <td><span className="rbadge" style={{background:b.role==="นิสิต"?(dark?"#0d2040":"#e3f2fd"):(dark?"#2a1040":"#f3e5f5"),color:b.role==="นิสิต"?(dark?"#90caf9":"#1565c0"):(dark?"#ce93d8":"#6a1b9a")}}>{b.role==="นิสิต"?"🎓":"👨‍🏫"} {b.role}</span></td>
-                              <td><strong>{b.room}</strong></td>
-                              <td>{b.date}</td>
-                              <td>{b.startTime}–{b.endTime}</td>
-                              <td>{(b.groupSize||1)>1?<span style={{background:dark?"#1a1f35":"#e8eaf6",color:dark?"#7986cb":"#1a237e",padding:"2px 8px",borderRadius:"12px",fontSize:".75rem",fontWeight:700}}>👥 {b.groupSize}</span>:<span style={{color:"var(--text4)",fontSize:".75rem"}}>👤 1</span>}</td>
-                              <td>{b.code?<span style={{fontFamily:"monospace",fontSize:".82rem",fontWeight:700,background:dark?"#1a1f35":"#e8eaf6",color:dark?"#7986cb":"#1a237e",padding:"2px 8px",borderRadius:"6px",letterSpacing:"1px"}}>{b.code}</span>:<span style={{color:"var(--text4)",fontSize:".75rem"}}>—</span>}</td>
-                              <td>{b.purpose}</td>
-                              <td><span className="sbadge" style={stBadgeStyle(b.status)}>{ST[b.status]?.label}</span></td>
-                              {session==="นิสิต"&&(
-                                <td>
-                                  {canCancel
-                                    ? <button onClick={()=>setCancelModal({booking:b,codeInput:"",err:null})}
-                                        style={{background:dark?"#2a0a10":"#fce4ec",color:"#c62828",border:"1px solid #ef9a9a",padding:"3px 10px",borderRadius:"6px",cursor:"pointer",fontFamily:"Sarabun,sans-serif",fontSize:".78rem",fontWeight:600,whiteSpace:"nowrap"}}>
-                                        ✕ ยกเลิก
-                                      </button>
-                                    : <span style={{color:"var(--text4)",fontSize:".75rem"}}>—</span>
-                                  }
-                                </td>
-                              )}
-                            </tr>
-                          );})}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* ══ CALENDAR ══ */}
-              {tab==="calendar"&&(()=>{
-                const total=Object.values(bookingsByDate).reduce((s,a)=>s+a.length,0);
-                return(
-                <div>
-                  <div className="sec-hdr"><div className="sec-icon">📅</div><h2>ปฏิทินการจองห้อง</h2></div>
-                  <div className="divider"/>
-                  <div style={{display:"flex",gap:".5rem",marginBottom:"1.1rem",flexWrap:"wrap",alignItems:"center"}}>
-                    <span style={{fontSize:".8rem",fontWeight:600,color:"var(--text2)"}}>🔍 กรองห้อง:</span>
-                    {[{id:"all",name:"ทั้งหมด"},...ROOMS].map(r=>{
-                      const ac=calFR===r.id; const col=r.id==="all"?"#1a237e":ROOM_COLORS[r.id];
-                      return <button key={r.id} onClick={()=>setCalFR(r.id)} style={{padding:".35rem .9rem",borderRadius:"20px",border:`2px solid ${ac?col:"var(--border)"}`,background:ac?col:"var(--bg-card)",color:ac?"#fff":"var(--text2)",fontFamily:"Sarabun,sans-serif",fontSize:".8rem",fontWeight:ac?700:500,cursor:"pointer",transition:"all .2s"}}>{r.id==="all"?"🏠 ทั้งหมด":r.name}</button>;
-                    })}
-                    <span style={{fontSize:".78rem",color:"var(--text3)"}}>พบ {total} รายการ</span>
-                  </div>
-                  <div className="card">
-                    <div className="cal-hdr">
-                      <button className="cal-nav" onClick={()=>setCalDate(new Date(year,month-1,1))}>‹</button>
-                      <div className="cal-title">{MONTHS[month]} {year+543}</div>
-                      <button className="cal-nav" onClick={()=>setCalDate(new Date(year,month+1,1))}>›</button>
-                    </div>
-                    <div className="cal-grid">
-                      {DAYS.map(d=><div key={d} className="cal-dh">{d}</div>)}
-                      {calCells.map((day,idx)=>{
-                        if(!day) return <div key={idx} className="cal-cell empty"/>;
-                        const ds=`${year}-${String(month+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
-                        const isT=todayObj.getFullYear()===year&&todayObj.getMonth()===month&&todayObj.getDate()===day;
-                        const db=bookingsByDate[ds]||[];
-                        return(
-                          <div key={idx} className={`cal-cell${isT?" today":""}`}>
-                            <div className="cal-dn">
-                              <span>{day}</span>
-                              {db.length>0&&<span style={{fontSize:".62rem",background:dark?"#2e3248":"#e8eaf6",color:dark?"#7986cb":"#1a237e",borderRadius:"10px",padding:"0 4px",fontWeight:700}}>{db.length}</span>}
-                            </div>
-                            {db.slice(0,3).map(b=>(
-                              <div key={b.id} className="cal-ev" style={{background:ROOM_COLORS[b.room]||"#1a237e"}} onClick={()=>setPopup(b)}>
-                                {calFR==="all"?`${b.room} `:""}{b.startTime}–{b.endTime}
-                              </div>
-                            ))}
-                            {db.length>3&&<div style={{fontSize:".6rem",color:"var(--text3)",textAlign:"right"}}>+{db.length-3}</div>}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
-              );})()}
-
-              {/* ══ REPORT ══ */}
-              {tab==="report"&&(
-                <div>
-                  <div className="sec-hdr"><div className="sec-icon">🔧</div><h2>แจ้งปัญหาอุปกรณ์</h2></div>
-                  <div className="divider"/>
-                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"1.25rem"}}>
-                    <div className="card">
-                      <div style={{fontFamily:"Noto Serif Thai,serif",fontWeight:700,fontSize:"1rem",color:dark?"#7986cb":"#1a237e",marginBottom:"1rem"}}>📋 แบบฟอร์มแจ้งปัญหา</div>
-                      {reportMsg&&<div className={`alert a-${reportMsg.type==="ok"?"ok":"err"} sli`}>{reportMsg.text}</div>}
-                      <div style={{display:"flex",flexDirection:"column",gap:".85rem"}}>
-                        <div className="fg">
-                          <label className="flabel">ห้องที่มีปัญหา <span>*</span></label>
-                          <select className="fselect" value={reportForm.room} onChange={e=>setReportForm(f=>({...f,room:e.target.value}))}>
-                            <option value="">-- เลือกห้อง --</option>
-                            {ROOMS.map(r=><option key={r.id} value={r.id}>{r.name}</option>)}
-                          </select>
-                        </div>
-                        <div className="fg">
-                          <label className="flabel">ประเภทปัญหา <span>*</span></label>
-                          <select className="fselect" value={reportForm.type} onChange={e=>setReportForm(f=>({...f,type:e.target.value}))}>
-                            <option value="">-- เลือกประเภท --</option>
-                            <option value="projector">📽️ โปรเจคเตอร์</option>
-                            <option value="aircon">❄️ เครื่องปรับอากาศ</option>
-                            <option value="light">💡 ไฟฟ้า / แสงสว่าง</option>
-                            <option value="computer">💻 คอมพิวเตอร์</option>
-                            <option value="internet">🌐 อินเทอร์เน็ต / WiFi</option>
-                            <option value="door">🚪 ประตู / กุญแจ</option>
-                            <option value="furniture">🪑 โต๊ะ เก้าอี้ อุปกรณ์</option>
-                            <option value="other">🔧 อื่น ๆ</option>
-                          </select>
-                        </div>
-                        <div className="fg">
-                          <label className="flabel">ชื่อผู้แจ้ง</label>
-                          <input className="finput" placeholder="ชื่อ-นามสกุล (ไม่บังคับ)" value={reportForm.reporter} onChange={e=>setReportForm(f=>({...f,reporter:e.target.value}))}/>
-                        </div>
-                        <div className="fg">
-                          <label className="flabel">รายละเอียดปัญหา <span>*</span></label>
-                          <textarea className="finput" rows={3} placeholder="อธิบายปัญหาที่พบ…"
-                            value={reportForm.detail} onChange={e=>setReportForm(f=>({...f,detail:e.target.value}))}
-                            style={{resize:"vertical",minHeight:75}}/>
-                        </div>
-                        <button className="btn-p" onClick={()=>{
-                          if(!reportForm.room||!reportForm.type||!reportForm.detail.trim()){setReportMsg({type:"err",text:"⚠️ กรุณากรอกข้อมูลให้ครบ"});return;}
-                          const todayStr=`${todayObj.getFullYear()}-${String(todayObj.getMonth()+1).padStart(2,"0")}-${String(todayObj.getDate()).padStart(2,"0")}`;
-                          const newReport = {id:Date.now(),room:reportForm.room,type:reportForm.type,detail:reportForm.detail,reporter:reportForm.reporter||"ไม่ระบุ",date:todayStr,status:"open"};
-                          setReports(rs=>[newReport,...rs]);
-
-                          // ── ส่ง n8n สำหรับ report ──────────────────────
-                          webhookSend({
-                            action:       "new_report",
-                            reportId:     String(newReport.id),
-                            room:         newReport.room,
-                            problemType:  newReport.type,
-                            detail:       newReport.detail,
-                            reporter:     newReport.reporter,
-                            date:         newReport.date,
-                            status:       "open",
-                          });
-
-                          setReportForm({room:"",type:"",detail:"",reporter:""});
-                          setReportMsg({type:"ok",text:"✅ แจ้งปัญหาเรียบร้อย เจ้าหน้าที่จะดำเนินการโดยเร็ว"});
-                          setTimeout(()=>setReportMsg(null),5000);
-                        }} style={{width:"100%",justifyContent:"center"}}>
-                          🔧 ส่งรายงานปัญหา
-                        </button>
-                      </div>
-                    </div>
-                    <div className="card">
-                      <div style={{fontFamily:"Noto Serif Thai,serif",fontWeight:700,fontSize:"1rem",color:dark?"#7986cb":"#1a237e",marginBottom:"1rem",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                        📋 รายการปัญหาที่แจ้ง
-                        <span style={{fontSize:".75rem",fontWeight:400,color:"var(--text3)"}}>ค้างอยู่ {reports.filter(r=>r.status==="open").length} รายการ</span>
-                      </div>
-                      {reports.length===0&&<div style={{color:"var(--text3)",fontSize:".85rem",textAlign:"center",padding:"2rem"}}>ยังไม่มีรายการ</div>}
-                      <div style={{display:"flex",flexDirection:"column",gap:".6rem"}}>
-                        {reports.map(r=>{
-                          const typeLabel={"projector":"📽️ โปรเจคเตอร์","aircon":"❄️ แอร์","light":"💡 ไฟฟ้า","computer":"💻 คอมฯ","internet":"🌐 อินเทอร์เน็ต","door":"🚪 ประตู","furniture":"🪑 เฟอร์นิเจอร์","other":"🔧 อื่นๆ"}[r.type]||r.type;
-                          return(
-                          <div key={r.id} style={{border:`1px solid ${r.status==="open"?(dark?"#5a3000":"#ffe0b2"):(dark?"#0a2410":"#c8e6c9")}`,borderRadius:"9px",padding:".65rem .9rem",background:r.status==="open"?(dark?"#1f1000":"#fff8f0"):(dark?"#0a2410":"#f1f8e9")}}>
-                            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:".5rem"}}>
-                              <div style={{flex:1}}>
-                                <div style={{display:"flex",gap:".5rem",alignItems:"center",marginBottom:".25rem",flexWrap:"wrap"}}>
-                                  <span style={{fontWeight:700,fontSize:".85rem",color:dark?"#e8eaf6":"#1a237e"}}>{r.room}</span>
-                                  <span style={{fontSize:".76rem",color:"var(--text3)"}}>{typeLabel}</span>
-                                  <span style={{fontSize:".7rem",color:"var(--text4)"}}>{r.date}</span>
-                                </div>
-                                <div style={{fontSize:".8rem",color:"var(--text2)",lineHeight:1.4}}>{r.detail}</div>
-                                {r.reporter!=="ไม่ระบุ"&&<div style={{fontSize:".72rem",color:"var(--text3)",marginTop:".2rem"}}>👤 {r.reporter}</div>}
-                              </div>
-                              <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:".3rem"}}>
-                                <span style={{fontSize:".72rem",fontWeight:700,padding:"2px 7px",borderRadius:"10px",background:r.status==="open"?(dark?"#3d1f00":"#ffe0b2"):(dark?"#0a2410":"#c8e6c9"),color:r.status==="open"?"#e65100":"#2e7d32"}}>
-                                  {r.status==="open"?"🔴 รอดำเนินการ":"✅ แก้ไขแล้ว"}
-                                </span>
-                                {session==="อาจารย์"&&r.status==="open"&&(
-                                  <button onClick={()=>setReports(rs=>rs.map(x=>x.id===r.id?{...x,status:"resolved"}:x))} className="btn-g" style={{fontSize:".72rem",padding:"2px 7px"}}>✓ แก้ไขแล้ว</button>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* ══ ADMIN ══ */}
-              {tab==="admin"&&session==="อาจารย์"&&(
-                <div>
-                  <div className="sec-hdr"><div className="sec-icon">🔐</div><h2>ส่วนจัดการสำหรับเจ้าหน้าที่</h2></div>
-                  <div className="divider"/>
-                  {!adminAuth?(
-                    <div className="card" style={{maxWidth:370}}>
-                      <div style={{textAlign:"center",marginBottom:"1.4rem"}}>
-                        <div style={{fontSize:"2.3rem",marginBottom:".35rem"}}>👩‍💼</div>
-                        <div style={{fontFamily:"Noto Serif Thai,serif",fontSize:"1rem",fontWeight:700,color:dark?"#ce93d8":"#4a148c"}}>เข้าสู่ระบบเจ้าหน้าที่</div>
-                      </div>
-                      {adminMsg&&<div className={`alert a-${adminMsg.type==="ok"?"ok":"err"}`}>{adminMsg.text}</div>}
-                      <div className="fg" style={{marginBottom:"1rem"}}>
-                        <label className="flabel">รหัสผ่าน</label>
-                        <input type="password" className="finput" placeholder="••••••••" value={adminPw} onChange={e=>setAdminPw(e.target.value)} onKeyDown={e=>e.key==="Enter"&&(adminPw===ADMIN_PW?(setAdminAuth(true),setAdminMsg(null)):setAdminMsg({type:"err",text:"❌ รหัสผ่านไม่ถูกต้อง"}))}/>
-                      </div>
-                      <button className="btn-p" style={{width:"100%",justifyContent:"center"}} onClick={()=>adminPw===ADMIN_PW?(setAdminAuth(true),setAdminMsg(null)):setAdminMsg({type:"err",text:"❌ รหัสผ่านไม่ถูกต้อง"})}>🔑 เข้าสู่ระบบ</button>
-                      <div className="demo-hint" style={{marginTop:".55rem"}}>รหัสสาธิต: admin1234</div>
-                    </div>
-                  ):(
-                    <div>
-                      <div className="adm-hdr">
-                        <div style={{fontSize:"1.3rem"}}>👩‍💼</div>
-                        <div><h3>ระบบจัดการข้อมูลการจอง</h3><p>สำหรับเจ้าหน้าที่ภาควิชาเท่านั้น</p></div>
-                        <button onClick={()=>{setAdminAuth(false);setAdminPw("");}} style={{marginLeft:"auto",background:"rgba(255,255,255,.2)",border:"none",color:"#fff",padding:".35rem .75rem",borderRadius:"6px",cursor:"pointer",fontFamily:"Sarabun,sans-serif",fontSize:".78rem"}}>ออก</button>
-                      </div>
-                      <div className="adm-body">
-                        {adminMsg&&<div style={{padding:"1rem 1.4rem 0"}}><div className={`alert a-${adminMsg.type==="ok"?"ok":"err"} sli`}>{adminMsg.text}</div></div>}
-                        <div style={{overflowX:"auto"}}>
-                          <table className="tbl">
-                            <thead><tr><th>ชื่อ-สกุล</th><th>สถานะ</th><th>ห้อง</th><th>วันที่</th><th>เวลา</th><th>วัตถุประสงค์</th><th>สถานะ</th><th>จัดการ</th></tr></thead>
-                            <tbody>
-                              {bookings.map(b=>(
-                                <tr key={b.id}>
-                                  <td style={{fontWeight:600}}>{b.name}</td>
-                                  <td>{b.role==="นิสิต"?"🎓":"👨‍🏫"} {b.role}</td>
-                                  <td><strong>{b.room}</strong></td>
-                                  <td>{b.date}</td><td>{b.startTime}–{b.endTime}</td><td>{b.purpose}</td>
-                                  <td><span className="sbadge" style={stBadgeStyle(b.status)}>{ST[b.status]?.label}</span></td>
-                                  <td>
-                                    <div style={{display:"flex",gap:".35rem"}}>
-                                      {(b.status==="pending"||b.status==="awaiting_advisor")&&(
-                                        <button className="btn-g" onClick={()=>{
-                                          setBookings(bs=>bs.map(x=>x.id===b.id?{...x,status:"approved"}:x));
-                                          setAdminMsg({type:"ok",text:"✅ อนุมัติเรียบร้อย"});
-                                          setTimeout(()=>setAdminMsg(null),3000);
-                                          webhookSend({action:"approve_booking",bookingCode:b.code,name:b.name,room:b.room,date:b.date,status:"approved"});
-                                        }}>✓ อนุมัติ</button>
-                                      )}
-                                      <button className="btn-d" onClick={()=>{
-                                        setBookings(bs=>bs.filter(x=>x.id!==b.id));
-                                        setAdminMsg({type:"ok",text:"✅ ลบเรียบร้อย"});
-                                        setTimeout(()=>setAdminMsg(null),3000);
-                                      }}>🗑 ลบ</button>
-                                    </div>
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-            </main>
+      freeTimeHtml=`<div style="margin-top:1.1rem;padding:1rem 1.1rem;background:${dark?"#1f1000":"#fff8f0"};border:2px solid #ff6f00;border-radius:10px;">
+        <div style="font-size:.82rem;font-weight:700;color:#e65100;margin-bottom:.6rem;display:flex;align-items:center;gap:.4rem;">
+          🌙 โหมดนอกเวลาราชการ — เลือกเวลาเริ่มได้อิสระ
+        </div>
+        ${otRule ? `<div style="font-size:.76rem;color:${dark?"#ff8a50":"#bf360c"};margin-bottom:.75rem;padding:.35rem .7rem;background:${dark?"#2d1500":"#fff3e0"};border-radius:6px;border:1px solid #ff9800;">
+          📋 วัตถุประสงค์ "<strong>${form.purpose}</strong>" → จำกัด <strong>${otDuration} ชม.</strong> (เหมือนในเวลาราชการ) แต่เลือกช่วงเวลาได้อิสระ
+        </div>` : `<div style="font-size:.76rem;color:#c62828;margin-bottom:.75rem;font-weight:600;">⚠️ กรุณาเลือกวัตถุประสงค์ก่อน</div>`}
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+          <div class="fg">
+            <label class="flabel">เวลาเริ่มต้น <span>*</span></label>
+            <input type="time" class="finput" value="${form.startTime}" ${!otRule?"disabled":""} oninput="setOTStartTime(this.value)"
+              style="${!otRule?"opacity:.5;cursor:not-allowed;":""}">
+            <div class="rnote">เลือกช่วงไหนก็ได้</div>
           </div>
-
-          {/* Cancel Modal */}
-          {cancelModal&&(
-            <div className="pop-ov" onClick={()=>setCancelModal(null)}>
-              <div className={`cancel-card${D}`} onClick={e=>e.stopPropagation()}>
-                <div style={{fontSize:"2rem",textAlign:"center",marginBottom:".5rem"}}>🗑️</div>
-                <div className="cancel-ttl" style={{textAlign:"center"}}>ยืนยันการยกเลิกการจอง</div>
-                <p style={{fontSize:".82rem",color:"var(--text3)",textAlign:"center",marginBottom:"1.1rem"}}>กรุณากรอก <strong style={{color:dark?"#7986cb":"#1a237e"}}>รหัสการจอง</strong> เพื่อยืนยัน</p>
-                <div className="cancel-info">
-                  <div style={{marginBottom:".3rem"}}><strong>{cancelModal.booking.name}</strong></div>
-                  <div>🏫 ห้อง <strong>{cancelModal.booking.room}</strong> &nbsp;·&nbsp; 📅 {cancelModal.booking.date}</div>
-                  <div>⏰ {cancelModal.booking.startTime} – {cancelModal.booking.endTime} &nbsp;·&nbsp; {cancelModal.booking.purpose}</div>
-                </div>
-                <div style={{background:dark?"#1a1f35":"#e8eaf6",border:`1px solid ${dark?"#2e3a6e":"#c5cae9"}`,borderRadius:"8px",padding:".6rem .9rem",marginBottom:"1rem",display:"flex",alignItems:"center",gap:".6rem"}}>
-                  <span style={{fontSize:"1.1rem"}}>🔑</span>
-                  <div>
-                    <div style={{fontSize:".75rem",color:"var(--text3)",marginBottom:".15rem"}}>รหัสการจองของคุณ (จาก Toast ตอนจอง)</div>
-                    <div style={{fontFamily:"monospace",fontSize:".95rem",fontWeight:700,color:dark?"#7986cb":"#1a237e",letterSpacing:"2px"}}>{cancelModal.booking.code||"ไม่มีรหัส"}</div>
-                  </div>
-                </div>
-                <div className="fg" style={{marginBottom:".5rem"}}>
-                  <label className="flabel">รหัสการจอง <span>*</span></label>
-                  <input className={`finput${cancelModal.err?" shake":""}`} placeholder="เช่น BK-A3F9"
-                    value={cancelModal.codeInput}
-                    onChange={e=>setCancelModal(m=>({...m,codeInput:e.target.value.toUpperCase(),err:null}))}
-                    onKeyDown={e=>e.key==="Enter"&&confirmCancel()}
-                    autoFocus
-                    style={{fontFamily:"monospace",letterSpacing:"2px",fontWeight:700,textTransform:"uppercase",
-                      borderColor:cancelModal.err?"#c62828":cancelModal.codeInput&&cancelModal.codeInput===cancelModal.booking.code?"#2e7d32":""}}
-                  />
-                  {cancelModal.err&&<div style={{fontSize:".78rem",color:"#c62828",marginTop:".3rem"}}>{cancelModal.err}</div>}
-                  {!cancelModal.err&&cancelModal.codeInput&&cancelModal.codeInput.toUpperCase()===(cancelModal.booking.code||"").toUpperCase()&&(
-                    <div style={{fontSize:".78rem",color:"#2e7d32",marginTop:".3rem"}}>✅ รหัสถูกต้อง</div>
-                  )}
-                </div>
-                <div className="cancel-actions">
-                  <button className="btn-cancel-back" onClick={()=>setCancelModal(null)}>← กลับ</button>
-                  <button className="btn-cancel-confirm" disabled={!cancelModal.codeInput} onClick={confirmCancel}>ยืนยันยกเลิกการจอง</button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Popup */}
-          {popup&&(
-            <div className="pop-ov" onClick={()=>setPopup(null)}>
-              <div className={`pop-card${D}`} onClick={e=>e.stopPropagation()}>
-                <div className="pop-ttl">📋 รายละเอียดการจอง</div>
-                {[["ชื่อ-สกุล",popup.name],["สถานะ",popup.role],["ห้อง",popup.room],["วันที่",popup.date],["เวลา",`${popup.startTime} – ${popup.endTime}`],["วัตถุประสงค์",popup.purpose]].map(([l,v])=>(
-                  <div key={l} className="pop-row"><span className="pop-lbl">{l}</span><span>{v}</span></div>
-                ))}
-                <div className="pop-row"><span className="pop-lbl">สถานะ</span><span className="sbadge" style={stBadgeStyle(popup.status)}>{ST[popup.status]?.label}</span></div>
-                <button className="pop-close" onClick={()=>setPopup(null)}>ปิด</button>
-              </div>
-            </div>
-          )}
-
-          {/* Toast */}
-          <div className="toast-wrap">
-            {toast&&(
-              <div className="toast">
-                <div className="toast-body">
-                  <div className="toast-top">
-                    <div style={{display:"flex",gap:".7rem",alignItems:"flex-start",flex:1}}>
-                      <div className={`toast-icon ${toast.isOT?"ot":"ok"}`}>{toast.isOT?"📧":"✅"}</div>
-                      <div style={{flex:1}}>
-                        <div className="toast-title">{toast.isOT?"ส่งคำขอจองนอกเวลาแล้ว!":"จองห้องสำเร็จ!"}</div>
-                        <div className="toast-sub">{toast.isOT?"รอการอนุมัติจากอาจารย์":"รอการอนุมัติจากเจ้าหน้าที่"}</div>
-                      </div>
-                    </div>
-                    <button className="toast-close" onClick={()=>setToast(null)}>✕</button>
-                  </div>
-                  <div className="toast-detail">
-                    <div className="toast-detail-row"><span>🏫</span><span>ห้อง <strong>{toast.room}</strong></span></div>
-                    <div className="toast-detail-row"><span>📅</span><span>{toast.date}</span></div>
-                    <div className="toast-detail-row"><span>⏰</span><span>{toast.startTime} – {toast.endTime}</span></div>
-                    <div className="toast-detail-row"><span>👤</span><span>{toast.name}</span></div>
-                  </div>
-                  <div style={{background:dark?"#1a1f35":"#e8eaf6",border:`2px dashed ${dark?"#3949ab":"#9fa8da"}`,borderRadius:"10px",padding:".6rem 1rem",marginBottom:".75rem",textAlign:"center"}}>
-                    <div style={{fontSize:".72rem",color:"var(--text3)",marginBottom:".2rem"}}>🔑 รหัสการจอง — เก็บไว้สำหรับยกเลิก</div>
-                    <div style={{fontFamily:"monospace",fontSize:"1.4rem",fontWeight:700,color:dark?"#7986cb":"#1a237e",letterSpacing:"4px"}}>{toast.code}</div>
-                    <div style={{fontSize:".68rem",color:"var(--text3)",marginTop:".2rem"}}>จดรหัสนี้ไว้ ห้ามบอกผู้อื่น</div>
-                  </div>
-                  <div className="toast-actions">
-                    <button className="toast-btn-primary" onClick={()=>{setTab("list");setToast(null);}}>📋 ดูรายการจอง</button>
-                    <button className="toast-btn-sec" onClick={()=>setToast(null)}>ปิด</button>
-                  </div>
-                </div>
-                <div className={`toast-bar${toast.isOT?" ot":""}`}/>
-              </div>
-            )}
+          <div class="fg">
+            <label class="flabel">เวลาสิ้นสุด</label>
+            <input type="time" class="finput" value="${otEndTime}" disabled
+              style="opacity:.75;background:${dark?"#252836":"#f0f4ff"};font-weight:700;color:${dark?"#7986cb":"#1a237e"};">
+            <div class="rnote">คำนวณอัตโนมัติ</div>
           </div>
-        </>
-      );
+        </div>
+        ${diff}
+      </div>`;
     }
+  }
 
-    // ── Mount ────────────────────────────────────────────────────────────────
-    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
-  </script>
+  // Reason textarea
+  const reasonHtml = (!isTeacher && !form.isOT && form.purpose==="อื่น ๆ")
+    ? `<div style="margin-top:1rem;"><div class="fg"><label class="flabel">เหตุผล / รายละเอียด <span>*</span></label>
+        <textarea class="finput" rows="3" placeholder="กรุณาระบุเหตุผลหรือรายละเอียดการใช้ห้องเพิ่มเติม"
+          oninput="setFormField('reason',this.value)">${esc(form.reason||"")}</textarea>
+      </div></div>` : "";
+
+  // Advisor box
+  const advisorHtml = needsAdvisor ? `
+    <div class="ot-box" style="margin-top:1.1rem;border-color:${isRoomRestricted?"#4a148c":"#ff6f00"};background:${isRoomRestricted?(dark?"#1a0a2e":"#f3e5f5"):(dark?"#1f1000":"#fff8f0")};">
+      <div class="ot-title" style="color:${isRoomRestricted?"#6a1b9a":"#e65100"};">
+        ${isRoomRestricted?"🔐 ห้องนี้ต้องมีอาจารย์ Approve ก่อนใช้งาน":"👨‍🏫 ข้อมูลอาจารย์ผู้ดูแล"}
+        <span style="font-weight:400;font-size:.8rem;margin-left:.4rem;">(บังคับ)</span>
+      </div>
+      <div class="ot-desc" style="color:${isRoomRestricted?(dark?"#ce93d8":"#6a1b9a"):""};">
+        ${isRoomRestricted
+          ?`ห้อง ${form.room} สงวนไว้สำหรับกิจกรรมที่มีอาจารย์กำกับดูแล`
+          :"นอกเวลาราชการ — ระบบจะส่ง Email ขออนุมัติให้อาจารย์อัตโนมัติ"}
+      </div>
+      <div class="fgrid">
+        <div class="fg">
+          <label class="flabel">ชื่ออาจารย์ผู้ดูแล <span>*</span></label>
+          <input class="finput" placeholder="ผศ.ดร.ชื่อ นามสกุล" value="${esc(form.advisorName)}"
+            oninput="setFormField('advisorName',this.value)"
+            style="border-color:${!form.advisorName?(isRoomRestricted?"#9c27b0":"#ff6f00"):""}">
+        </div>
+        <div class="fg">
+          <label class="flabel">Email อาจารย์ <span>*</span></label>
+          <input type="email" class="finput" placeholder="lecturer@buu.ac.th" value="${esc(form.advisorEmail)}"
+            oninput="setFormField('advisorEmail',this.value)"
+            style="border-color:${!form.advisorEmail?(isRoomRestricted?"#9c27b0":"#ff6f00"):""}">
+        </div>
+      </div>
+      <div style="margin-top:.6rem;font-size:.75rem;color:${isRoomRestricted?(dark?"#ce93d8":"#6a1b9a"):(dark?"#ff8a50":"#bf360c")};">
+        📧 กดยืนยันจะเปิด Email Client พร้อมข้อความขออนุมัติอัตโนมัติ
+      </div>
+    </div>` : "";
+
+  // Group counter info badge
+  let groupBadge = "";
+  if(!isTeacher && gs>1 && rule && !form.isOT){
+    const dur=calcDuration(rule.hrs,gs);
+    const capped=(rule.hrs*gs)>4;
+    groupBadge=`<span style="margin-left:.5rem;display:inline-flex;align-items:center;gap:.3rem;font-size:.76rem;font-weight:700;padding:3px 9px;border-radius:8px;background:${capped?(dark?"#1f1500":"#fff8e1"):dark?"#0a2410":"#e8f5e9"};color:${capped?(dark?"#ffb300":"#e65100"):dark?"#66bb6a":"#2e7d32"};border:1px solid ${capped?(dark?"#5a4000":"#f9a825"):dark?"#2e7d32":"#a5d6a7"};">
+      ${capped?"⚠️":"👥"} ${gs} คน · <strong>${dur} ชม.</strong>${capped?" (cap 4ชม.)":""}
+    </span>`;
+  }
+
+  // Submit button label
+  let submitLabel = "✅ ยืนยันการจองห้อง";
+  if(form.isOT) submitLabel="📧 ส่งคำขอ & เปิด Email อาจารย์";
+  else if(session.role==="นิสิต" && roomMeta?.needsApproval) submitLabel="📧 ส่งคำขอ Approve & เปิด Email อาจารย์";
+
+  const submitBtnStyle = needsAdvisor ? `background:linear-gradient(135deg,#6a1b9a,#9c27b0);` : "";
+  const timePreview = form.startTime&&form.endTime
+    ? `<span style="font-size:.82rem;font-weight:600;padding:.3rem .85rem;border-radius:8px;color:${form.isOT?(dark?"#ff8a50":"#e65100"):(dark?"#7986cb":"#1a237e")};background:${form.isOT?(dark?"#1f1000":"#fff3e0"):(dark?"#1a1f35":"#e8eaf6")};">
+        ⏰ ${form.startTime} – ${form.endTime}${gs>1?` · 👥 ${gs} คน`:""}
+      </span>` : "";
+
+  el.innerHTML = `
+  <div>
+    <div class="sec-hdr"><div class="sec-icon">📝</div><h2>แบบฟอร์มจองห้อง</h2></div>
+    <div class="divider"></div>
+
+    <!-- Rules box -->
+    <div class="rules-box">
+      <div class="rules-ttl">📋 กฎระเบียบการจองห้อง (ตามตารางภาควิชา)</div>
+      <div style="overflow-x:auto;margin-bottom:.5rem;">
+        <table style="width:100%;border-collapse:collapse;font-size:.78rem;">
+          <thead>
+            <tr style="background:#1a237e;color:white;">
+              <th style="padding:.35rem .6rem;text-align:left;border-radius:6px 0 0 0;">ห้อง</th>
+              <th style="padding:.35rem .6rem;text-align:left;">ผู้มีสิทธิ์</th>
+              <th style="padding:.35rem .6rem;text-align:left;">ช่วงเวลา</th>
+              <th style="padding:.35rem .6rem;text-align:left;border-radius:0 6px 0 0;">จำนวนชั่วโมง</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${[
+              {room:"MA103 / MA105",who:"นิสิต",time:"จ.–ศ. 08:00–17:00",detail:[
+                {t:"ซ้อม (สัมมนา/โครงงาน)",d:"1 ชม./คน → 1คน=1ชม., 2คน=2ชม., 3คน=3ชม., 4+คน=4ชม."},
+                {t:"ทุกวัตถุประสงค์",d:"1 ชม./คน → 1คน=1ชม., 2คน=2ชม., 3คน=3ชม., 4+คน=4ชม."},
+              ]},
+              {room:"MA106 / MA107 / MA208 🔐",who:"นิสิต (ต้อง Approve)",time:"ทุกเวลา",detail:[
+                {t:"ทุกวัตถุประสงค์",d:"ต้องระบุอาจารย์ผู้ดูแล"},
+              ]},
+              {room:"MA103–MA208",who:"อาจารย์ / เจ้าหน้าที่",time:"ทุกเวลา",detail:[
+                {t:"ทุกวัตถุประสงค์",d:"ไม่จำกัดชั่วโมง"},
+              ]},
+            ].map((row,ri)=>`
+              <tr style="background:${ri%2===0?(dark?"#1a1d27":"#fafafa"):(dark?"#13151f":"white")};border-bottom:1px solid ${dark?"#252836":"#e8e4db"};">
+                <td style="padding:.4rem .6rem;font-weight:700;color:${dark?"#7986cb":"#1a237e"};vertical-align:top;">${row.room}</td>
+                <td style="padding:.4rem .6rem;color:var(--text2);vertical-align:top;">${row.who}</td>
+                <td style="padding:.4rem .6rem;color:var(--text2);white-space:nowrap;vertical-align:top;">${row.time}</td>
+                <td style="padding:.4rem .6rem;vertical-align:top;">${row.detail.map(d=>`
+                  <div style="margin-bottom:.2rem;">
+                    <span style="color:${d.red?(dark?"#f48fb1":"#c62828"):"var(--text)"};font-weight:600;">${d.t}: </span>
+                    <span style="color:var(--text3);">${d.d}</span>
+                  </div>`).join("")}
+                </td>
+              </tr>`).join("")}
+          </tbody>
+        </table>
+      </div>
+      <div style="font-size:.74rem;color:${dark?"#555b7a":"#888"};margin-top:.3rem;">
+        🌙 นิสิตที่ต้องการจองนอกเวลา: ติ๊ก "จองนอกเวลาราชการ" และระบุอาจารย์ผู้ดูแล &nbsp;·&nbsp; ⏱ จำกัดสูงสุด <strong>4 ชม.</strong> ต่อครั้ง
+      </div>
+    </div>
+
+    <div class="card">
+      <div id="submit-msg"></div>
+      <div class="badge-role${session.role==="นิสิต"?" student":""}">
+        ${session.role==="นิสิต"?"🎓 กำลังจองในฐานะ นิสิต":"👨‍🏫 กำลังจองในฐานะ อาจารย์"}
+      </div>
+
+      ${session.role==="นิสิต" ? `
+      <!-- OT Checkbox -->
+      <div style="margin-bottom:1.25rem;">
+        <label style="display:flex;align-items:center;gap:.65rem;cursor:pointer;user-select:none;padding:.75rem 1rem;border-radius:10px;border:2px solid ${form.isOT?"#ff6f00":(dark?"#2e3248":"#ddd")};background:${form.isOT?(dark?"#1f1000":"#fff8f0"):(dark?"#1a1d27":"#fafafa")};transition:all .2s;">
+          <input type="checkbox" ${form.isOT?"checked":""} onchange="toggleOT(this.checked)" style="width:18px;height:18px;accent-color:#e65100;cursor:pointer;flex-shrink:0;">
+          <div>
+            <div style="font-weight:700;font-size:.92rem;color:${form.isOT?"#e65100":(dark?"#e8eaf6":"#333")};">🌙 จองนอกเวลาราชการ</div>
+            <div style="font-size:.75rem;color:${form.isOT?"#bf360c":(dark?"#555b7a":"#999")};margin-top:.1rem;">
+              ${form.isOT?"✅ โหมดนอกเวลา — กรอกเวลาเองได้อิสระ":"ไม่ติ๊ก = ใช้เวลาราชการ 08:00–17:00 มี Slot สำเร็จรูปให้เลือก"}
+            </div>
+          </div>
+          <div style="margin-left:auto;padding:.2rem .6rem;border-radius:6px;font-size:.72rem;font-weight:700;background:${form.isOT?"#e65100":"#2e7d32"};color:white;flex-shrink:0;">
+            ${form.isOT?"OT":"ปกติ"}
+          </div>
+        </label>
+      </div>
+
+      <!-- Group counter -->
+      <div class="group-box">
+        <div class="group-title">👥 จำนวนผู้ใช้ห้อง</div>
+        <div class="grp-counter">
+          <button class="gc-btn" ${gs<=1?"disabled":""} onclick="changeGroupSize(-1)">−</button>
+          <span class="gc-num">${gs}</span>
+          <button class="gc-btn" ${gs>=4?"disabled":""} onclick="changeGroupSize(1)">+</button>
+          <span class="gc-info">${gs===1?"👤 จองคนเดียว":`👥 จองกลุ่ม ${gs} คน`}</span>
+          ${groupBadge}
+        </div>
+        ${membersHtml}
+      </div>
+      ` : ""}
+
+      <div class="fgrid">
+        <div class="fg wide">
+          <label class="flabel">ชื่อ-สกุล ผู้จอง <span>*</span></label>
+          <input class="finput" placeholder="กรอกชื่อ-นามสกุล" value="${esc(form.name)}" oninput="setFormField('name',this.value)">
+        </div>
+        <div class="fg">
+          <label class="flabel">วันที่ <span>*</span></label>
+          <input type="date" class="finput" value="${form.date}" oninput="setFormField('date',this.value)"
+            style="${session.role==="นิสิต"&&!form.isOT&&form.date&&[0,6].includes(new Date(form.date).getDay())?"border-color:#c62828;":""}">
+          ${dowMsg}
+          ${session.role==="นิสิต"&&!form.isOT?`<div class="rnote">นิสิตจองได้เฉพาะวันจันทร์–ศุกร์</div>`:""}
+        </div>
+        <div class="fg">
+          <label class="flabel">ห้องที่ขอใช้ <span>*</span></label>
+          <select class="fselect" onchange="setFormField('room',this.value)">
+            <option value="">-- เลือกห้อง --</option>
+            <optgroup label="📚 ห้องทั่วไป (นิสิตจองได้ตามปกติ)">
+              ${ROOMS.filter(r=>!r.needsApproval).map(r=>`<option value="${r.id}" ${form.room===r.id?"selected":""}>${r.icon} ${r.name}</option>`).join("")}
+            </optgroup>
+            <optgroup label="🔐 ห้องพิเศษ (ต้องมีอาจารย์ Approve ก่อน)">
+              ${ROOMS.filter(r=>r.needsApproval).map(r=>`<option value="${r.id}" ${form.room===r.id?"selected":""}>${r.icon} ${r.name} — ต้อง Approve</option>`).join("")}
+            </optgroup>
+          </select>
+          ${roomMeta?`<div class="rnote" style="${roomMeta.needsApproval?"color:#6a1b9a;":""}">${roomMeta.note}</div>`:""}
+        </div>
+        <div class="fg wide">
+          <label class="flabel">วัตถุประสงค์ <span>*</span></label>
+          <select class="fselect" onchange="setFormField('purpose',this.value)">
+            <option value="">-- เลือกวัตถุประสงค์ --</option>
+            ${(isTeacher ? PURPOSES_TEACHER : PURPOSES).map(p=>`<option value="${p}" ${form.purpose===p?"selected":""}>${p}${PURPOSE_RULES[p]&&!form.isOT?" ("+PURPOSE_RULES[p].hrs+"ชม./คน)":""}</option>`).join("")}
+          </select>
+          ${rule&&!form.isOT?`<div class="rnote">⏱ ${rule.hrs} ชม./คน × ${gs} คน = <strong>${duration} ชม.</strong>${isCapped?" (จำกัดสูงสุด 4 ชม.)":""} — เลือก Slot ด้านล่าง</div>`:""}
+          ${form.isOT&&form.purpose&&PURPOSE_RULES[form.purpose]?`<div class="rnote" style="color:#e65100;">🌙 OT: จำกัด <strong>${calcDuration(PURPOSE_RULES[form.purpose].hrs,gs)} ชม.</strong> — เลือกเวลาเริ่มได้อิสระ</div>`:""}
+        </div>
+      </div>
+
+      ${slotHtml}
+      ${reasonHtml}
+      ${freeTimeHtml}
+      ${advisorHtml}
+
+      <div style="margin-top:1.4rem;display:flex;justify-content:flex-end;align-items:center;gap:1rem;flex-wrap:wrap;">
+        ${timePreview}
+        <button class="btn-p" style="${submitBtnStyle}" onclick="handleSubmit()">
+          ${submitLabel}
+        </button>
+      </div>
+    </div>
+  </div>`;
+}
+
+// Form field setters
+function setFormField(key, val){
+  form[key] = val;
+  if(key==="isOT"){ form.slot="";form.startTime="";form.endTime=""; if(!val){form.advisorName="";form.advisorEmail="";} }
+  if(key==="purpose"){
+    form.slot="";form.reason="";
+    if(form.isOT){ form.startTime="";form.endTime=""; } // reset OT time เมื่อเปลี่ยน purpose
+    else { form.startTime="";form.endTime=""; }
+  }
+  if(key==="slot" && val){ const[s,e]=val.split("-"); form.startTime=s; form.endTime=e; }
+  if(key==="groupSize"){
+    const newSize=parseInt(val)||1;
+    const needed=Math.max(0,newSize-1);
+    const cur=form.members.slice(0,needed);
+    while(cur.length<needed) cur.push({name:"",studentId:""});
+    form.members=cur;
+    // recalc endTime ใน OT mode
+    if(form.isOT && form.startTime && form.purpose){
+      const otRule=PURPOSE_RULES[form.purpose];
+      if(otRule){ form.endTime=MIN_TO_TIME(toMin(form.startTime)+calcDuration(otRule.hrs,newSize)*60); }
+    }
+  }
+  renderBooking();
+}
+
+function toggleOT(val){ form.isOT=val; form.slot=""; form.startTime=""; form.endTime=""; if(!val){form.advisorName="";form.advisorEmail="";} renderBooking(); }
+
+// สำหรับ OT นิสิต — อัปเดตเวลาเริ่ม แล้วคำนวณ endTime อัตโนมัติ
+function setOTStartTime(val){
+  form.startTime=val;
+  const otRule = form.purpose ? PURPOSE_RULES[form.purpose] : null;
+  if(otRule && val){
+    const gs=parseInt(form.groupSize)||1;
+    const dur=calcDuration(otRule.hrs, gs);
+    form.endTime=MIN_TO_TIME(toMin(val)+dur*60);
+  } else {
+    form.endTime="";
+  }
+  renderBooking();
+}
+function changeGroupSize(delta){ form.groupSize=Math.max(1,Math.min(4,(parseInt(form.groupSize)||1)+delta)); setFormField("groupSize",form.groupSize); }
+function updateMember(idx,key,val){ form.members[idx]=form.members[idx]||{name:"",studentId:""}; form.members[idx][key]=val; }
+function selectSlot(val){ form.slot=(form.slot===val?"":val); if(form.slot){const[s,e]=val.split("-");form.startTime=s;form.endTime=e;} else{form.startTime="";form.endTime="";} renderBooking(); }
+
+function showSubmitMsg(type, text){
+  const el = document.getElementById("submit-msg");
+  if(!el) return;
+  el.innerHTML = `<div class="alert a-${type==="ok"?"ok":"err"} sli">${text}</div>`;
+}
+
+function buildMailto(bk){
+  const sub=encodeURIComponent(`[ขออนุมัติจองห้องนอกเวลา] ${bk.room} วันที่ ${bk.date}`);
+  const body=encodeURIComponent(`เรียน อาจารย์ ${bk.advisorName}\n\nนิสิต ${bk.name} ขออนุมัติใช้ห้อง ${bk.room}\nวันที่: ${bk.date}\nเวลา: ${bk.startTime} – ${bk.endTime}\nวัตถุประสงค์: ${bk.purpose}\nจำนวน: ${bk.groupSize} คน\n\nกรุณาตอบกลับเพื่อ อนุมัติ หรือ ปฏิเสธ\nรหัสคำขอ: #${bk.id}\nระบบจองห้อง — ภาควิชาคณิตศาสตร์`);
+  return `mailto:${bk.advisorEmail}?subject=${sub}&body=${body}`;
+}
+
+function handleSubmit(){
+  if(!form.name||!form.date||!form.room||!form.purpose){ showSubmitMsg("err","⚠️ กรุณากรอกข้อมูลให้ครบถ้วน"); return; }
+  const purposeRule=PURPOSE_RULES[form.purpose];
+  if(purposeRule?.needsReason&&!form.reason?.trim()){ showSubmitMsg("err","⚠️ กรุณากรอกเหตุผลเพิ่มเติมสำหรับ \"อื่น ๆ\""); return; }
+  if(!form.startTime||!form.endTime){ showSubmitMsg("err","⚠️ กรุณาเลือกช่วงเวลา"); return; }
+
+  if(session.role==="นิสิต"&&!form.isOT){
+    const dow=new Date(form.date).getDay();
+    if(dow===0||dow===6){ showSubmitMsg("err","⚠️ นิสิตจองได้เฉพาะวันจันทร์–ศุกร์ เท่านั้น"); return; }
+    const stMin=toMin(form.startTime),etMin=toMin(form.endTime);
+    if(stMin<480||etMin>1020){ showSubmitMsg("err","⚠️ เวลาราชการ 08:00–17:00 น. เท่านั้น (หากต้องการนอกเวลา ให้ติ๊ก OT)"); return; }
+  }
+
+  const gs=parseInt(form.groupSize)||1;
+  if(gs>1&&form.members.some(m=>!m.name)){ showSubmitMsg("err","⚠️ กรุณากรอกชื่อสมาชิกให้ครบ"); return; }
+  if(form.isOT){
+    if(!form.advisorName.trim()){ showSubmitMsg("err","⚠️ กรุณาระบุชื่ออาจารย์ผู้ดูแล"); return; }
+    if(!form.advisorEmail.includes("@")){ showSubmitMsg("err","⚠️ กรุณาระบุ Email อาจารย์ให้ถูกต้อง"); return; }
+  }
+
+  const stNew=toMin(form.startTime),etNew=toMin(form.endTime);
+  const conflict=bookings.find(b=>b.room===form.room&&b.date===form.date&&b.status!=="cancelled"&&stNew<toMin(b.endTime)&&etNew>toMin(b.startTime));
+  if(conflict){ showSubmitMsg("err",`❌ ไม่สามารถจองได้ — ห้อง ${form.room} ช่วง ${conflict.startTime}–${conflict.endTime} มีการจองอยู่แล้ว (${ST[conflict.status]?.label||conflict.status})`); return; }
+
+  const roomMeta=ROOMS.find(r=>r.id===form.room);
+  const needsAdvisor=session.role!=="อาจารย์"&&(form.isOT||roomMeta?.needsApproval);
+  if(needsAdvisor&&!form.advisorName.trim()){ showSubmitMsg("err",`⚠️ ห้อง ${form.room} ต้องมีอาจารย์ Approve ก่อน`); return; }
+
+  const code=genCode();
+  const bk={id:Date.now(),code,...JSON.parse(JSON.stringify(form)),groupSize:gs,role:session.role,status:needsAdvisor?"awaiting_advisor":"pending"};
+  bookings.unshift(bk);
+
+  n8nSend({
+    action:"new_booking",id:String(bk.id),code:bk.code,name:bk.name,date:bk.date,
+    startTime:bk.startTime,endTime:bk.endTime,room:bk.room,purpose:bk.purpose,
+    groupSize:bk.groupSize,role:bk.role,status:bk.status,statusThai:ST[bk.status]?.label||bk.status,
+    advisorName:bk.advisorName||"",advisorEmail:bk.advisorEmail||"",
+    isOT:bk.isOT?"ใช่":"ไม่",members:JSON.stringify(bk.members||[]),reason:bk.reason||"",
+  });
+
+  form={name:"",date:"",startTime:"",endTime:"",room:"",purpose:"",groupSize:1,members:[],advisorName:"",advisorEmail:"",isOT:false,slot:"",reason:""};
+  if(needsAdvisor) setTimeout(()=>window.open(buildMailto(bk),"_blank"),300);
+  showToast({isOT:needsAdvisor,room:bk.room,date:bk.date,startTime:bk.startTime,endTime:bk.endTime,gs,name:bk.name,code});
+  renderBooking();
+}
+
+// ══════════════════════════════════════════════════════════
+//  TAB: STATUS
+// ══════════════════════════════════════════════════════════
+function renderStatus(){
+  nowTime=getNow();
+  const todayStr=getTodayStr();
+  const nowMin=toMin(nowTime);
+  const todayBks=bookings.filter(b=>b.date===todayStr&&["approved","pending"].includes(b.status));
+  const openReports=reports.filter(r=>r.status==="open");
+
+  const cards = ROOMS.map(room=>{
+    const busy=todayBks.some(b=>b.room===room.id&&toMin(b.startTime)<=nowMin&&nowMin<toMin(b.endTime));
+    const cur=todayBks.find(b=>b.room===room.id&&toMin(b.startTime)<=nowMin&&nowMin<toMin(b.endTime));
+    const next=todayBks.filter(b=>b.room===room.id&&toMin(b.startTime)>nowMin).sort((a,b)=>toMin(a.startTime)-toMin(b.startTime))[0]||null;
+    const hasIssue=openReports.some(r=>r.room===room.id);
+    const slots=todayBks.filter(b=>b.room===room.id).sort((a,b)=>toMin(a.startTime)-toMin(b.startTime));
+
+    return `<div class="room-card${busy?" busy":""}${hasIssue?" issue":""}" style="border-color:${hasIssue?"#ff9800":busy?"#f44336":"#4caf50"};">
+      <div class="room-card-hdr" style="background:${busy?(dark?"#2a0a10":"#fce4ec"):(dark?"#0a2410":"#e8f5e9")};border-bottom:1px solid ${dark?"#252836":"#e0e0e0"};">
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+          <div style="display:flex;align-items:center;gap:.6rem;">
+            <span style="font-size:1.5rem;">${room.icon}</span>
+            <div>
+              <div style="font-family:'Noto Serif Thai',serif;font-weight:700;font-size:1rem;color:${dark?"#e8eaf6":"#1a237e"};">${room.name}</div>
+              <div style="font-size:.72rem;color:var(--text3);">${room.needsApproval?"🔐 ต้อง Approve":"นิสิต + อาจารย์"}</div>
+            </div>
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:flex-end;gap:.25rem;">
+            <div style="display:inline-flex;align-items:center;gap:.35rem;padding:.3rem .75rem;border-radius:20px;font-weight:700;font-size:.8rem;background:${busy?"#f44336":"#4caf50"};color:white;">
+              <span style="width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.7);display:inline-block;${busy?"":"animation:pulse 2s infinite"}"></span>
+              ${busy?"🔴 ไม่ว่าง":"🟢 ว่าง"}
+            </div>
+            ${hasIssue?`<div style="font-size:.7rem;color:#ff9800;font-weight:600;">⚠️ มีรายงานปัญหา</div>`:""}
+          </div>
+        </div>
+      </div>
+      <div class="room-card-body">
+        ${busy&&cur?`<div style="background:${dark?"#2a0a10":"#fce4ec"};border:1px solid #ef9a9a;border-radius:8px;padding:.6rem .85rem;margin-bottom:.65rem;">
+          <div style="font-size:.76rem;font-weight:700;color:#c62828;margin-bottom:.2rem;">🔴 กำลังใช้งาน</div>
+          <div style="font-size:.82rem;font-weight:600;color:var(--text);">${esc(cur.name)}</div>
+          <div style="font-size:.75rem;color:var(--text3);">${cur.startTime}–${cur.endTime} · ${esc(cur.purpose)}</div>
+        </div>`:""}
+        ${!busy?`<div style="background:${dark?"#0a2410":"#e8f5e9"};border:1px solid #a5d6a7;border-radius:8px;padding:.6rem .85rem;margin-bottom:.65rem;">
+          <div style="font-size:.76rem;font-weight:700;color:#2e7d32;margin-bottom:.1rem;">🟢 ว่างอยู่ในขณะนี้</div>
+          <div style="font-size:.75rem;color:var(--text3);">${next?`จะถูกจองเวลา ${next.startTime}–${next.endTime}`:"ไม่มีการจองที่เหลือในวันนี้"}</div>
+        </div>`:""}
+        <div style="font-size:.75rem;font-weight:700;color:var(--text2);margin-bottom:.4rem;">📅 ตารางวันนี้</div>
+        ${slots.length===0?`<div style="font-size:.78rem;color:var(--text3);font-style:italic;">ไม่มีการจองในวันนี้</div>`
+        :`<div style="display:flex;flex-direction:column;gap:.3rem;">
+          ${slots.map(b=>{
+            const isCur=toMin(b.startTime)<=nowMin&&nowMin<toMin(b.endTime);
+            return `<div style="display:flex;align-items:center;gap:.5rem;padding:.3rem .6rem;border-radius:6px;background:${isCur?(dark?"#2a0a10":"#fce4ec"):(dark?"#1a1d27":"#f5f5f5")};border:1px solid ${isCur?"#ef9a9a":(dark?"#252836":"#e0e0e0")};">
+              <span style="font-size:.65rem;font-family:monospace;color:${isCur?"#c62828":"var(--text3)"};white-space:nowrap;font-weight:${isCur?700:400};">${b.startTime}–${b.endTime}</span>
+              <span style="font-size:.75rem;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;">${esc(b.name)}</span>
+              ${isCur?`<span style="font-size:.68rem;color:#c62828;font-weight:700;">ใช้งาน</span>`:""}
+            </div>`;
+          }).join("")}
+        </div>`}
+        <button onclick="setTab('booking');setFormField('room','${room.id}');"
+          style="margin-top:.75rem;width:100%;padding:.48rem;border-radius:7px;border:1px solid ${dark?"#2e3248":"#c5cae9"};background:${dark?"#1a1f35":"#e8eaf6"};color:${dark?"#7986cb":"#1a237e"};font-family:Sarabun,sans-serif;font-size:.8rem;font-weight:600;cursor:pointer;">
+          📝 จองห้องนี้
+        </button>
+      </div>
+    </div>`;
+  }).join("");
+
+  document.getElementById("tab-status").innerHTML = `
+  <div>
+    <div class="sec-hdr"><div class="sec-icon">🟢</div><h2>สถานะห้องแบบ Real-time</h2></div>
+    <div class="divider"></div>
+    <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:1.25rem;flex-wrap:wrap;">
+      <div style="font-size:.82rem;color:var(--text2);">📅 วันนี้ ${todayStr} &nbsp;·&nbsp; ⏰ ${nowTime} น.</div>
+      <button onclick="nowTime=getNow();renderStatus();" style="font-size:.75rem;padding:.25rem .65rem;border-radius:6px;border:1px solid ${dark?"#2e3248":"#ddd"};background:var(--bg-card);color:var(--text2);cursor:pointer;">🔄 รีเฟรช</button>
+    </div>
+    <div class="room-status-grid">${cards}</div>
+  </div>`;
+}
+
+// ══════════════════════════════════════════════════════════
+//  TAB: LIST
+// ══════════════════════════════════════════════════════════
+function renderList(){
+  const filtered = listFilterRoom==="all" ? bookings : bookings.filter(b=>b.room===listFilterRoom);
+  const isStudent = session.role==="นิสิต";
+
+  const rows = filtered.map((b,i)=>{
+    const tsMs = typeof b.id==="number"&&b.id>1000000000000 ? b.id : null;
+    const tsLabel = tsMs ? (()=>{const d=new Date(tsMs);return `${String(d.getDate()).padStart(2,"0")}/${String(d.getMonth()+1).padStart(2,"0")} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;})() : `#${i+1}`;
+    const canCancel = isStudent && b.role==="นิสิต" && b.status!=="cancelled";
+    return `<tr>
+      <td style="font-family:monospace;font-size:.75rem;color:var(--text3);white-space:nowrap;">${tsLabel}</td>
+      <td style="font-weight:600;">${esc(b.name)}${isStudent&&b.role==="นิสิต"?`<span style="margin-left:.4rem;font-size:.68rem;background:${dark?"#1a1f35":"#e8eaf6"};color:${dark?"#7986cb":"#1a237e"};border-radius:10px;padding:1px 6px;font-weight:700;">ฉัน</span>`:""}</td>
+      <td><span class="rbadge" style="background:${b.role==="นิสิต"?(dark?"#0d2040":"#e3f2fd"):(dark?"#2a1040":"#f3e5f5")};color:${b.role==="นิสิต"?(dark?"#90caf9":"#1565c0"):(dark?"#ce93d8":"#6a1b9a")}">${b.role==="นิสิต"?"🎓":"👨‍🏫"} ${b.role}</span></td>
+      <td><strong>${b.room}</strong></td>
+      <td>${b.date}</td>
+      <td style="white-space:nowrap;">${b.startTime}–${b.endTime}</td>
+      <td>${(b.groupSize||1)>1?`<span style="background:${dark?"#1a1f35":"#e8eaf6"};color:${dark?"#7986cb":"#1a237e"};padding:2px 8px;border-radius:12px;font-size:.75rem;font-weight:700;">👥 ${b.groupSize}</span>`:`<span style="color:var(--text4);font-size:.75rem;">👤 1</span>`}</td>
+      <td>${b.code?`<span style="font-family:monospace;font-size:.82rem;font-weight:700;background:${dark?"#1a1f35":"#e8eaf6"};color:${dark?"#7986cb":"#1a237e"};padding:2px 8px;border-radius:6px;letter-spacing:1px;">${b.code}</span>`:`<span style="color:var(--text4);font-size:.75rem;">—</span>`}</td>
+      <td>${esc(b.purpose)}</td>
+      <td><span class="sbadge" style="${stBadgeStyle(b.status)}">${ST[b.status]?.label||b.status}</span></td>
+      ${isStudent?`<td>${canCancel?`<button onclick="openCancelModal(${b.id})" style="background:${dark?"#2a0a10":"#fce4ec"};color:#c62828;border:1px solid #ef9a9a;padding:3px 10px;border-radius:6px;cursor:pointer;font-family:Sarabun,sans-serif;font-size:.78rem;font-weight:600;white-space:nowrap;">✕ ยกเลิก</button>`:`<span style="color:var(--text4);font-size:.75rem;">—</span>`}</td>`:""}
+    </tr>`;
+  }).join("");
+
+  document.getElementById("tab-list").innerHTML = `
+  <div>
+    <div class="sec-hdr"><div class="sec-icon">📋</div><h2>รายการจองทั้งหมด</h2></div>
+    <div class="divider"></div>
+    <div class="fbar">
+      <select class="fsel" onchange="listFilterRoom=this.value;renderList();">
+        <option value="all" ${listFilterRoom==="all"?"selected":""}>🏠 ทุกห้อง</option>
+        ${ROOMS.map(r=>`<option value="${r.id}" ${listFilterRoom===r.id?"selected":""}>${r.name}</option>`).join("")}
+      </select>
+      <span style="font-size:.82rem;color:var(--text3);">พบ ${filtered.length} รายการ</span>
+    </div>
+    <div class="card" style="padding:0;overflow:hidden;">
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead><tr>
+            <th>เวลาจอง</th><th>ชื่อ-สกุล</th><th>สถานะ</th><th>ห้อง</th><th>วันที่</th><th>เวลา</th><th>กลุ่ม</th><th>รหัสจอง</th><th>วัตถุประสงค์</th><th>การจอง</th>
+            ${isStudent?"<th>ยกเลิก</th>":""}
+          </tr></thead>
+          <tbody>${rows||`<tr><td colspan="${isStudent?11:10}" style="text-align:center;padding:2rem;color:var(--text3);">ไม่มีรายการ</td></tr>`}</tbody>
+        </table>
+      </div>
+    </div>
+    ${isStudent?`<div style="margin-top:.85rem;padding:.65rem 1rem;background:${dark?"#1a1f35":"#e8eaf6"};border-radius:8px;font-size:.8rem;color:${dark?"#9da3c4":"#1a237e"};border:1px solid ${dark?"#2e3a6e":"#c5cae9"};">
+      ℹ️ นิสิตสามารถยกเลิกได้เฉพาะการจองที่มีชื่อของตัวเองเท่านั้น โดยต้องพิมพ์รหัสยืนยัน
+    </div>`:""}
+  </div>`;
+}
+
+// ══════════════════════════════════════════════════════════
+//  TAB: CALENDAR
+// ══════════════════════════════════════════════════════════
+function renderCalendar(){
+  const year=calDate.getFullYear(), month=calDate.getMonth();
+  const firstDay=new Date(year,month,1).getDay();
+  const daysInMonth=new Date(year,month+1,0).getDate();
+  const todayObj=new Date();
+
+  const byDate={};
+  const src = calFilterRoom==="all" ? bookings : bookings.filter(b=>b.room===calFilterRoom);
+  src.forEach(b=>{ if(!byDate[b.date]) byDate[b.date]=[]; byDate[b.date].push(b); });
+  const total=Object.values(byDate).reduce((s,a)=>s+a.length,0);
+
+  const cells = [];
+  for(let i=0;i<firstDay;i++) cells.push(`<div class="cal-cell empty"></div>`);
+  for(let d=1;d<=daysInMonth;d++){
+    const ds=`${year}-${String(month+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
+    const isT=todayObj.getFullYear()===year&&todayObj.getMonth()===month&&todayObj.getDate()===d;
+    const db=byDate[ds]||[];
+    const badge=db.length>0?`<span style="font-size:.62rem;background:${dark?"#2e3248":"#e8eaf6"};color:${dark?"#7986cb":"#1a237e"};border-radius:10px;padding:0 4px;font-weight:700;">${db.length}</span>`:"";
+    const evs=db.slice(0,3).map(b=>`<div class="cal-ev" style="background:${ROOM_COLORS[b.room]||"#1a237e"};" onclick='openPopup(${b.id})'>${calFilterRoom==="all"?b.room+" ":""}${b.startTime}–${b.endTime}</div>`).join("");
+    const more=db.length>3?`<div style="font-size:.6rem;color:var(--text3);text-align:right;">+${db.length-3}</div>`:"";
+    cells.push(`<div class="cal-cell${isT?" today":""}">
+      <div class="cal-dn"><span>${d}</span>${badge}</div>
+      ${evs}${more}
+    </div>`);
+  }
+
+  const filterBtns = [{id:"all",name:"ทั้งหมด"},...ROOMS].map(r=>{
+    const ac=calFilterRoom===r.id;
+    const col=r.id==="all"?"#1a237e":ROOM_COLORS[r.id];
+    return `<button onclick="calFilterRoom='${r.id}';renderCalendar();" style="padding:.35rem .9rem;border-radius:20px;border:2px solid ${ac?col:"var(--border)"};background:${ac?col:"var(--bg-card)"};color:${ac?"#fff":"var(--text2)"};font-family:Sarabun,sans-serif;font-size:.8rem;font-weight:${ac?700:500};cursor:pointer;transition:all .2s;">${r.id==="all"?"🏠 ทั้งหมด":r.name}</button>`;
+  }).join("");
+
+  const legend = calFilterRoom==="all"
+    ? `<div style="display:flex;gap:.6rem;margin-bottom:.85rem;flex-wrap:wrap;">${ROOMS.map(r=>`<span style="font-size:.73rem;display:flex;align-items:center;gap:.25rem;"><span style="width:10px;height:10px;background:${ROOM_COLORS[r.id]};border-radius:2px;display:inline-block;"></span>${r.name}</span>`).join("")}</div>`
+    : "";
+
+  document.getElementById("tab-calendar").innerHTML = `
+  <div>
+    <div class="sec-hdr"><div class="sec-icon">📅</div><h2>ปฏิทินการจองห้อง</h2></div>
+    <div class="divider"></div>
+    <div style="display:flex;gap:.5rem;margin-bottom:1.1rem;flex-wrap:wrap;align-items:center;">
+      <span style="font-size:.8rem;font-weight:600;color:var(--text2);">🔍 กรองห้อง:</span>
+      ${filterBtns}
+      <span style="font-size:.78rem;color:var(--text3);">พบ ${total} รายการ${calFilterRoom!=="all"?` · ${calFilterRoom}`:""}</span>
+    </div>
+    ${legend}
+    <div class="card">
+      <div class="cal-hdr">
+        <button class="cal-nav" onclick="calDate=new Date(${year},${month-1},1);renderCalendar();">‹</button>
+        <div style="text-align:center;">
+          <div class="cal-title">${MONTHS[month]} ${year+543}</div>
+          ${calFilterRoom!=="all"?`<div style="font-size:.72rem;font-weight:600;color:${ROOM_COLORS[calFilterRoom]};margin-top:2px;">${calFilterRoom}</div>`:""}
+        </div>
+        <button class="cal-nav" onclick="calDate=new Date(${year},${month+1},1);renderCalendar();">›</button>
+      </div>
+      <div class="cal-grid">
+        ${DAYS.map(d=>`<div class="cal-dh">${d}</div>`).join("")}
+        ${cells.join("")}
+      </div>
+    </div>
+  </div>`;
+}
+
+function openPopup(id){
+  const b = bookings.find(x=>x.id==id);
+  if(!b) return;
+  const rows=[["ชื่อ-สกุล",esc(b.name)],["สถานะ",b.role],["ห้อง",b.room],["วันที่",b.date],["เวลา",`${b.startTime} – ${b.endTime}`],["วัตถุประสงค์",esc(b.purpose)]];
+  let html = rows.map(([l,v])=>`<div class="pop-row"><span class="pop-lbl">${l}</span><span>${v}</span></div>`).join("");
+  if((b.groupSize||1)>1){
+    const mems = b.members?.length>0 ? b.members.map(m=>`<div style="font-size:.78rem;color:var(--text2);">· ${esc(m.name)}${m.studentId?` (${m.studentId})`:""}</div>`).join("") : "";
+    html+=`<div class="pop-row"><span class="pop-lbl">กลุ่ม</span><div><span style="font-weight:700;color:${dark?"#7986cb":"#1a237e"};">👥 ${b.groupSize} คน</span>${mems}</div></div>`;
+  }
+  html+=`<div class="pop-row"><span class="pop-lbl">สถานะ</span><span class="sbadge" style="${stBadgeStyle(b.status)}">${ST[b.status]?.label||b.status}</span></div>`;
+  document.getElementById("popup-content").innerHTML=html;
+  document.getElementById("popup-modal").classList.remove("hidden");
+  document.getElementById("popup-modal").onclick=closePopup;
+  document.querySelector("#popup-modal .pop-card").onclick=e=>e.stopPropagation();
+}
+function closePopup(){ document.getElementById("popup-modal").classList.add("hidden"); }
+
+// ══════════════════════════════════════════════════════════
+//  TAB: REPORT
+// ══════════════════════════════════════════════════════════
+const REPORT_TYPE_LABELS = {"projector":"📽️ โปรเจคเตอร์","aircon":"❄️ เครื่องปรับอากาศ","light":"💡 ไฟฟ้า/แสงสว่าง","computer":"💻 คอมพิวเตอร์","internet":"🌐 อินเทอร์เน็ต/WiFi","door":"🚪 ประตู/กุญแจ","furniture":"🪑 เฟอร์นิเจอร์","other":"🔧 อื่นๆ"};
+
+function renderReport(){
+  const openCount=reports.filter(r=>r.status==="open").length;
+  const quickBtns = ROOMS.map(room=>
+    [["projector","📽️ โปรเจคเตอร์"],["aircon","❄️ แอร์"],["light","💡 ไฟ"],["internet","🌐 WiFi"]].map(([type,label])=>`
+      <button onclick="reportForm={room:'${room.id}',type:'${type}',detail:'${label.split(' ')[1]} ใน${room.name} มีปัญหา',reporter:''};renderReport();window.scrollTo({top:0,behavior:'smooth'});"
+        style="padding:.38rem .75rem;border-radius:7px;border:1px solid ${dark?"#2e3248":"#e0e0e0"};background:var(--bg-card);color:var(--text2);font-family:Sarabun,sans-serif;font-size:.75rem;cursor:pointer;transition:all .15s;"
+        onmouseover="this.style.borderColor='#ff9800';this.style.color='#e65100';"
+        onmouseout="this.style.borderColor='${dark?"#2e3248":"#e0e0e0"}';this.style.color='var(--text2)';">
+        ${label} · ${room.name}
+      </button>`).join("")
+  ).join("");
+
+  const reportList = reports.map(r=>{
+    const lbl=REPORT_TYPE_LABELS[r.type]||r.type;
+    return `<div class="report-item" style="border:1px solid ${r.status==="open"?(dark?"#5a3000":"#ffe0b2"):(dark?"#0a2410":"#c8e6c9")};background:${r.status==="open"?(dark?"#1f1000":"#fff8f0"):(dark?"#0a2410":"#f1f8e9")};">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:.5rem;">
+        <div style="flex:1;">
+          <div style="display:flex;gap:.5rem;align-items:center;margin-bottom:.25rem;flex-wrap:wrap;">
+            <span style="font-weight:700;font-size:.85rem;color:${dark?"#e8eaf6":"#1a237e"};">${r.room}</span>
+            <span style="font-size:.76rem;color:var(--text3);">${lbl}</span>
+            <span style="font-size:.7rem;color:var(--text4);">${r.date}</span>
+          </div>
+          <div style="font-size:.8rem;color:var(--text2);line-height:1.4;">${esc(r.detail)}</div>
+          ${r.reporter!=="ไม่ระบุ"?`<div style="font-size:.72rem;color:var(--text3);margin-top:.2rem;">👤 ${esc(r.reporter)}</div>`:""}
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:.3rem;">
+          <span style="font-size:.72rem;font-weight:700;padding:2px 7px;border-radius:10px;background:${r.status==="open"?(dark?"#3d1f00":"#ffe0b2"):(dark?"#0a2410":"#c8e6c9")};color:${r.status==="open"?"#e65100":"#2e7d32"};">
+            ${r.status==="open"?"🔴 รอดำเนินการ":"✅ แก้ไขแล้ว"}
+          </span>
+          ${session.role==="อาจารย์"&&r.status==="open"?`<button onclick="resolveReport(${r.id})" class="btn-g" style="font-size:.72rem;padding:2px 7px;">✓ แก้ไขแล้ว</button>`:""}
+        </div>
+      </div>
+    </div>`;
+  }).join("") || `<div style="color:var(--text3);font-size:.85rem;text-align:center;padding:2rem;">ยังไม่มีรายการแจ้งปัญหา</div>`;
+
+  document.getElementById("tab-report").innerHTML = `
+  <div>
+    <div class="sec-hdr"><div class="sec-icon">🔧</div><h2>แจ้งปัญหาอุปกรณ์</h2></div>
+    <div class="divider"></div>
+    <div class="report-grid">
+      <div class="card">
+        <div style="font-family:'Noto Serif Thai',serif;font-weight:700;font-size:1rem;color:${dark?"#7986cb":"#1a237e"};margin-bottom:1rem;">📋 แบบฟอร์มแจ้งปัญหา</div>
+        <div id="report-msg"></div>
+        <div style="display:flex;flex-direction:column;gap:.85rem;">
+          <div class="fg">
+            <label class="flabel">ห้องที่มีปัญหา <span>*</span></label>
+            <select class="fselect" onchange="reportForm.room=this.value;">
+              <option value="">-- เลือกห้อง --</option>
+              ${ROOMS.map(r=>`<option value="${r.id}" ${reportForm.room===r.id?"selected":""}>${r.name}</option>`).join("")}
+            </select>
+          </div>
+          <div class="fg">
+            <label class="flabel">ประเภทปัญหา <span>*</span></label>
+            <select class="fselect" onchange="reportForm.type=this.value;">
+              <option value="">-- เลือกประเภท --</option>
+              ${Object.entries(REPORT_TYPE_LABELS).map(([v,l])=>`<option value="${v}" ${reportForm.type===v?"selected":""}>${l}</option>`).join("")}
+            </select>
+          </div>
+          <div class="fg">
+            <label class="flabel">ชื่อผู้แจ้ง</label>
+            <input class="finput" placeholder="ชื่อ-นามสกุล (ไม่บังคับ)" value="${esc(reportForm.reporter)}" oninput="reportForm.reporter=this.value;">
+          </div>
+          <div class="fg">
+            <label class="flabel">รายละเอียดปัญหา <span>*</span></label>
+            <textarea class="finput" rows="3" placeholder="อธิบายปัญหาที่พบ..." oninput="reportForm.detail=this.value;">${esc(reportForm.detail)}</textarea>
+          </div>
+          <button class="btn-p" style="width:100%;justify-content:center;" onclick="submitReport()">🔧 ส่งรายงานปัญหา</button>
+        </div>
+      </div>
+      <div class="card">
+        <div style="font-family:'Noto Serif Thai',serif;font-weight:700;font-size:1rem;color:${dark?"#7986cb":"#1a237e"};margin-bottom:1rem;display:flex;justify-content:space-between;align-items:center;">
+          📋 รายการปัญหาที่แจ้ง
+          <span style="font-size:.75rem;font-weight:400;color:var(--text3);">พบ ${openCount} รายการที่ยังค้างอยู่</span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:.6rem;">${reportList}</div>
+      </div>
+    </div>
+    <div class="card" style="margin-top:1rem;">
+      <div style="font-weight:700;color:${dark?"#7986cb":"#1a237e"};margin-bottom:.75rem;font-size:.9rem;">⚡ แจ้งปัญหาด่วน — คลิกเลือกห้องและปัญหา</div>
+      <div style="display:flex;flex-wrap:wrap;gap:.5rem;">${quickBtns}</div>
+    </div>
+  </div>`;
+}
+
+function submitReport(){
+  if(!reportForm.room||!reportForm.type||!reportForm.detail.trim()){
+    const el=document.getElementById("report-msg");
+    if(el) el.innerHTML=`<div class="alert a-err">⚠️ กรุณากรอกข้อมูลให้ครบ</div>`;
+    return;
+  }
+  const typeLabel=REPORT_TYPE_LABELS[reportForm.type]||reportForm.type;
+  const newR={id:Date.now(),room:reportForm.room,type:reportForm.type,detail:reportForm.detail,reporter:reportForm.reporter||"ไม่ระบุ",date:getTodayStr(),status:"open"};
+  reports.unshift(newR);
+  n8nSend({action:"new_report",id:String(newR.id),room:newR.room,type:newR.type,typeThai:typeLabel,detail:newR.detail,reporter:newR.reporter,date:newR.date,status:"open",statusThai:"🔴 รอดำเนินการ"});
+  reportForm={room:"",type:"",detail:"",reporter:""};
+  renderReport();
+  const el=document.getElementById("report-msg");
+  if(el){ el.innerHTML=`<div class="alert a-ok sli">✅ แจ้งปัญหาเรียบร้อย เจ้าหน้าที่จะดำเนินการโดยเร็ว</div>`; setTimeout(()=>{if(el)el.innerHTML="";},5000); }
+}
+
+function resolveReport(id){
+  const r=reports.find(x=>x.id==id);
+  if(r){ r.status="resolved"; renderReport(); }
+}
+
+// ══════════════════════════════════════════════════════════
+//  TAB: ADMIN
+// ══════════════════════════════════════════════════════════
+function renderAdmin(){
+  if(session.role!=="อาจารย์") return;
+  const el=document.getElementById("tab-admin");
+  if(!adminAuth){
+    el.innerHTML=`
+    <div>
+      <div class="sec-hdr"><div class="sec-icon">🔐</div><h2>ส่วนจัดการสำหรับเจ้าหน้าที่</h2></div>
+      <div class="divider"></div>
+      <div class="card" style="max-width:370px;">
+        <div style="text-align:center;margin-bottom:1.4rem;">
+          <div style="font-size:2.3rem;margin-bottom:.35rem;">👩‍💼</div>
+          <div style="font-family:'Noto Serif Thai',serif;font-size:1rem;font-weight:700;color:${dark?"#ce93d8":"#4a148c"};">เข้าสู่ระบบเจ้าหน้าที่</div>
+          <div style="font-size:.78rem;color:var(--text3);margin-top:.2rem;">เฉพาะเจ้าหน้าที่ภาควิชา</div>
+        </div>
+        <div id="admin-login-msg"></div>
+        <div class="fg" style="margin-bottom:1rem;">
+          <label class="flabel">รหัสผ่าน</label>
+          <input type="password" class="finput" id="admin-pw-input" placeholder="••••••••" onkeydown="if(event.key==='Enter')tryAdminLogin();">
+        </div>
+        <button class="btn-p" style="width:100%;justify-content:center;" onclick="tryAdminLogin();">🔑 เข้าสู่ระบบ</button>
+        <div class="demo-hint" style="margin-top:.55rem;">รหัสสาธิต: admin1234</div>
+      </div>
+    </div>`;
+    return;
+  }
+
+  const rows = bookings.map(b=>`<tr>
+    <td style="font-weight:600;">${esc(b.name)}</td>
+    <td>${b.role==="นิสิต"?"🎓":"👨‍🏫"} ${b.role}</td>
+    <td><strong>${b.room}</strong></td>
+    <td>${b.date}</td>
+    <td style="white-space:nowrap;">${b.startTime}–${b.endTime}</td>
+    <td>${esc(b.purpose)}</td>
+    <td><span class="sbadge" style="${stBadgeStyle(b.status)}">${ST[b.status]?.label||b.status}</span></td>
+    <td>
+      <div style="display:flex;gap:.35rem;flex-wrap:wrap;">
+        ${(b.status==="pending"||b.status==="awaiting_advisor")?`
+          <button class="btn-g" onclick="adminApprove(${b.id})">✓ อนุมัติ</button>
+          <button style="background:${dark?"#2a0a10":"#fce4ec"};color:#c62828;border:1px solid #ef9a9a;padding:.3rem .65rem;border-radius:6px;cursor:pointer;font-family:Sarabun,sans-serif;font-size:.78rem;font-weight:600;" onclick="adminReject(${b.id})">✕ ปฏิเสธ</button>`:""}
+        <button class="btn-d" onclick="adminDelete(${b.id})">🗑 ลบ</button>
+      </div>
+    </td>
+  </tr>`).join("");
+
+  el.innerHTML=`
+  <div>
+    <div class="sec-hdr"><div class="sec-icon">🔐</div><h2>ส่วนจัดการสำหรับเจ้าหน้าที่</h2></div>
+    <div class="divider"></div>
+    <div>
+      <div class="adm-hdr">
+        <div style="font-size:1.3rem;">👩‍💼</div>
+        <div><h3>ระบบจัดการข้อมูลการจอง</h3><p>สำหรับเจ้าหน้าที่ภาควิชาเท่านั้น</p></div>
+        <button onclick="adminAuth=false;renderAdmin();" style="margin-left:auto;background:rgba(255,255,255,.2);border:none;color:#fff;padding:.35rem .75rem;border-radius:6px;cursor:pointer;font-family:Sarabun,sans-serif;font-size:.78rem;">ออก</button>
+      </div>
+      <div class="adm-body">
+        <div id="admin-msg" style="padding:0;"></div>
+        <div class="tbl-wrap">
+          <table class="tbl">
+            <thead><tr><th>ชื่อ-สกุล</th><th>สถานะ</th><th>ห้อง</th><th>วันที่</th><th>เวลา</th><th>วัตถุประสงค์</th><th>การจอง</th><th>จัดการ</th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function tryAdminLogin(){
+  const pw=document.getElementById("admin-pw-input")?.value||"";
+  if(pw===ADMIN_PW){ adminAuth=true; renderAdmin(); }
+  else{
+    const msg=document.getElementById("admin-login-msg");
+    if(msg) msg.innerHTML=`<div class="alert a-err">❌ รหัสผ่านไม่ถูกต้อง</div>`;
+  }
+}
+
+function showAdminMsg(type,text){
+  const el=document.getElementById("admin-msg");
+  if(!el) return;
+  el.innerHTML=`<div style="padding:1rem 1.4rem 0;"><div class="alert a-${type==="ok"?"ok":"err"} sli">${text}</div></div>`;
+  setTimeout(()=>{if(el)el.innerHTML="";},3000);
+}
+
+function adminApprove(id){
+  const b=bookings.find(x=>x.id==id);
+  if(b){ b.status="approved"; n8nSend({action:"update_booking",id:String(b.id),code:b.code,status:"approved",statusThai:"✅ อนุมัติแล้ว"}); renderAdmin(); showAdminMsg("ok","✅ อนุมัติเรียบร้อย"); }
+}
+function adminReject(id){
+  const b=bookings.find(x=>x.id==id);
+  if(b){ b.status="rejected"; n8nSend({action:"update_booking",id:String(b.id),code:b.code,status:"rejected",statusThai:"🚫 ปฏิเสธ"}); renderAdmin(); showAdminMsg("ok","🚫 ปฏิเสธเรียบร้อย"); }
+}
+function adminDelete(id){
+  const b=bookings.find(x=>x.id==id);
+  if(b){ bookings=bookings.filter(x=>x.id!=id); n8nSend({action:"delete_booking",id:String(b.id),code:b.code}); renderAdmin(); showAdminMsg("ok","✅ ลบเรียบร้อย"); }
+}
+
+// ══════════════════════════════════════════════════════════
+//  CANCEL MODAL
+// ══════════════════════════════════════════════════════════
+function openCancelModal(id){
+  cancelTarget = bookings.find(b=>b.id==id);
+  if(!cancelTarget) return;
+  document.getElementById("cancel-booking-info").innerHTML=`
+    <div style="margin-bottom:.3rem;"><strong>${esc(cancelTarget.name)}</strong></div>
+    <div>🏫 ห้อง <strong>${cancelTarget.room}</strong> &nbsp;·&nbsp; 📅 ${cancelTarget.date}</div>
+    <div>⏰ ${cancelTarget.startTime} – ${cancelTarget.endTime} &nbsp;·&nbsp; ${esc(cancelTarget.purpose)}</div>`;
+  document.getElementById("cancel-code-display").textContent = cancelTarget.code||"ไม่มีรหัส (ข้อมูลเก่า)";
+  document.getElementById("cancel-code-input").value="";
+  document.getElementById("cancel-err").style.display="none";
+  document.getElementById("cancel-ok").style.display="none";
+  document.getElementById("cancel-confirm-btn").disabled=true;
+  document.getElementById("cancel-modal").classList.remove("hidden");
+  document.getElementById("cancel-modal").onclick=closeCancelModal;
+  document.querySelector("#cancel-modal .cancel-card").onclick=e=>e.stopPropagation();
+  setTimeout(()=>document.getElementById("cancel-code-input").focus(),100);
+}
+
+function closeCancelModal(){
+  document.getElementById("cancel-modal").classList.add("hidden");
+  cancelTarget=null;
+}
+
+function onCancelInput(el){
+  const val=el.value.toUpperCase();
+  el.value=val;
+  document.getElementById("cancel-err").style.display="none";
+  if(!cancelTarget) return;
+  const match = val.trim()===(cancelTarget.code||"").toUpperCase();
+  document.getElementById("cancel-ok").style.display=match&&val?"":"none";
+  document.getElementById("cancel-confirm-btn").disabled=!val;
+  el.style.borderColor = cancelTarget.err ? "#c62828" : (match&&val?"#2e7d32":"");
+}
+
+function confirmCancel(){
+  if(!cancelTarget) return;
+  const val=document.getElementById("cancel-code-input").value.trim().toUpperCase();
+  if(val!==(cancelTarget.code||"").toUpperCase()){
+    document.getElementById("cancel-err").textContent="❌ รหัสการจองไม่ถูกต้อง กรุณาตรวจสอบอีกครั้ง";
+    document.getElementById("cancel-err").style.display="";
+    document.getElementById("cancel-code-input").classList.add("shake");
+    setTimeout(()=>document.getElementById("cancel-code-input").classList.remove("shake"),400);
+    return;
+  }
+  const b=bookings.find(x=>x.id===cancelTarget.id);
+  if(b){ b.status="cancelled"; n8nSend({action:"update_booking",id:String(b.id),code:b.code,status:"cancelled",statusThai:"❌ ยกเลิกแล้ว"}); }
+  closeCancelModal();
+  renderList();
+}
+
+// ══════════════════════════════════════════════════════════
+//  TOAST
+// ══════════════════════════════════════════════════════════
+let toastTimer=null;
+function showToast(data){
+  if(toastTimer) clearTimeout(toastTimer);
+  const wrap=document.getElementById("toast-wrap");
+  const isOT=data.isOT;
+  wrap.innerHTML=`<div class="toast" id="active-toast">
+    <div class="toast-body">
+      <div class="toast-top">
+        <div style="display:flex;gap:.7rem;align-items:flex-start;flex:1;">
+          <div class="toast-icon${isOT?" ot":""}">${isOT?"📧":"✅"}</div>
+          <div style="flex:1;">
+            <div class="toast-title">${isOT?"ส่งคำขอจองนอกเวลาแล้ว!":"จองห้องสำเร็จ!"}</div>
+            <div class="toast-sub">${isOT?"รอการอนุมัติจากอาจารย์ก่อนใช้งานได้":`${data.gs>1?`กลุ่ม ${data.gs} คน · `:""}รอการอนุมัติจากเจ้าหน้าที่`}</div>
+          </div>
+        </div>
+        <button class="toast-close" onclick="closeToast()">✕</button>
+      </div>
+      <div class="toast-detail">
+        <div class="toast-detail-row"><span>🏫</span><span>ห้อง <strong>${data.room}</strong></span></div>
+        <div class="toast-detail-row"><span>📅</span><span>${data.date}</span></div>
+        <div class="toast-detail-row"><span>⏰</span><span>${data.startTime} – ${data.endTime}${data.gs>1?` · ${data.gs} คน`:""}</span></div>
+        <div class="toast-detail-row"><span>👤</span><span>${esc(data.name)}</span></div>
+      </div>
+      <div class="toast-code-box">
+        <div style="font-size:.72rem;color:var(--text3);margin-bottom:.2rem;">🔑 รหัสการจอง — เก็บไว้สำหรับยกเลิก</div>
+        <div style="font-family:monospace;font-size:1.4rem;font-weight:700;color:${dark?"#7986cb":"#1a237e"};letter-spacing:4px;">${data.code}</div>
+        <div style="font-size:.68rem;color:var(--text3);margin-top:.2rem;">จดรหัสนี้ไว้ ห้ามบอกผู้อื่น</div>
+      </div>
+      <div class="toast-actions">
+        <button class="toast-btn-primary" onclick="setTab('list');closeToast();">📋 ดูรายการจอง</button>
+        <button class="toast-btn-sec" onclick="closeToast();">ปิด</button>
+      </div>
+    </div>
+    <div class="toast-bar${isOT?" ot":""}"></div>
+  </div>`;
+  toastTimer=setTimeout(closeToast,10000);
+}
+
+function closeToast(){
+  const t=document.getElementById("active-toast");
+  if(t){ t.classList.add("leaving"); setTimeout(()=>{ document.getElementById("toast-wrap").innerHTML=""; },400); }
+  if(toastTimer){ clearTimeout(toastTimer); toastTimer=null; }
+}
+
+// ══════════════════════════════════════════════════════════
+//  UTILS
+// ══════════════════════════════════════════════════════════
+function esc(str){ if(!str) return ""; return String(str).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+function getTodayStr(){ const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; }
+
+// ══════════════════════════════════════════════════════════
+//  EXPOSE ALL FUNCTIONS TO GLOBAL SCOPE
+//  (required for onclick= attributes in HTML)
+// ══════════════════════════════════════════════════════════
+window.devLogin=devLogin;
+window.doLogin=doLogin;
+window.logout=logout;
+window.toggleDark=toggleDark;
+window.setTab=setTab;
+window.fetchFromSheets=fetchFromSheets;
+window.renderBooking=renderBooking;
+window.renderStatus=renderStatus;
+window.renderList=renderList;
+window.renderCalendar=renderCalendar;
+window.renderReport=renderReport;
+window.renderAdmin=renderAdmin;
+window.setFormField=setFormField;
+window.toggleOT=toggleOT;
+window.setOTStartTime=setOTStartTime;
+window.changeGroupSize=changeGroupSize;
+window.updateMember=updateMember;
+window.selectSlot=selectSlot;
+window.handleSubmit=handleSubmit;
+window.openCancelModal=openCancelModal;
+window.closeCancelModal=closeCancelModal;
+window.onCancelInput=onCancelInput;
+window.confirmCancel=confirmCancel;
+window.openPopup=openPopup;
+window.closePopup=closePopup;
+window.closeToast=closeToast;
+window.submitReport=submitReport;
+window.resolveReport=resolveReport;
+window.tryAdminLogin=tryAdminLogin;
+window.adminApprove=adminApprove;
+window.adminReject=adminReject;
+window.adminDelete=adminDelete;
+window.getNow=getNow;
+window.showToast=showToast;
+
+// Init Google Sign-In if real CLIENT_ID is provided
+(function(){
+  if(GOOGLE_CLIENT_ID.startsWith('YOUR_')) return;
+  var s=document.createElement('script');
+  s.src='https://accounts.google.com/gsi/client';
+  s.async=true; s.defer=true;
+  s.onload=initGoogleSignIn;
+  document.head.appendChild(s);
+})();
+
+// Hide dev buttons if using real Google OAuth
+if(!GOOGLE_CLIENT_ID.startsWith('YOUR_')){
+  document.getElementById('dev-mode-notice').style.display='none';
+  document.getElementById('dev-buttons').style.display='none';
+}
+</script>
 </body>
 </html>
